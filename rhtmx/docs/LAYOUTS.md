@@ -9,7 +9,7 @@ RHTMX provides a clean layout system that:
 - ✅ Type-safe slot contracts via structs
 - ✅ Builder pattern for easy customization
 - ✅ Supports root layouts and page-level layouts
-- ✅ Works seamlessly with file-based routing and #[get], #[post] handlers
+- ✅ Works seamlessly with file-based routing and `get!()`, `post!()` handlers
 - ✅ Zero runtime overhead - pure compile-time
 
 ## Quick Start
@@ -19,7 +19,7 @@ RHTMX provides a clean layout system that:
 ```rust
 use rhtmx::{html, Html, layouts, Ok, OkResponse};
 
-#[get]
+get!()
 fn index() -> OkResponse {
     let content = html! {
         <div class="hero">
@@ -38,7 +38,7 @@ fn index() -> OkResponse {
 ### 2. With Custom Slots
 
 ```rust
-#[get]
+get!()
 fn about() -> OkResponse {
     let content = html! {
         <article>
@@ -60,7 +60,7 @@ fn about() -> OkResponse {
 For HTMX partial updates, return HTML without a layout:
 
 ```rust
-#[get]
+get!()
 fn user_list() -> OkResponse {
     let users = get_users();
 
@@ -102,7 +102,7 @@ pub struct Slots {
 
 **Example:**
 ```rust
-#[get]
+get!()
 fn homepage() -> OkResponse {
     let content = html! {
         <div class="container">
@@ -148,7 +148,7 @@ pub struct Slots {
 
 **Example:**
 ```rust
-#[get]
+get!()
 fn admin_dashboard() -> OkResponse {
     let content = html! {
         <div class="dashboard">
@@ -295,7 +295,7 @@ Ok().html(layouts::root::layout(content, Slots::new("Page Title")))
 When returning HTML fragments for HTMX swaps, skip the layout:
 
 ```rust
-#[get]
+get!()
 fn load_more_items() -> OkResponse {
     let html = html! {
         <div r-for="item in items">
@@ -312,7 +312,7 @@ fn load_more_items() -> OkResponse {
 Keep admin pages visually consistent:
 
 ```rust
-#[get]
+get!()
 fn admin_users() -> OkResponse {
     Ok().html(layouts::admin::layout(content, Slots::new("Users")))
 }

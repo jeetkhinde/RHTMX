@@ -32,7 +32,7 @@ rhtmx = "0.1"
 use rhtmx::{html, Html, Ok, get};
 
 // HTTP Handler
-#[get]
+get!()
 fn index() -> rhtmx::OkResponse {
     let users = vec!["Alice", "Bob", "Charlie"];
     Ok().render(user_list, users)
@@ -59,13 +59,13 @@ Use HTTP verb macros (`get!`, `post!`, `put!`, `patch!`, `delete!`) to define ro
 
 ```rust
 // GET /users
-#[get]
+get!()
 fn index() -> OkResponse {
     Ok().render(users_page, get_users())
 }
 
 // POST /users
-#[post]
+post!()
 fn create(req: CreateUserRequest) -> OkResponse {
     let user = db::create_user(req)?;
     Ok().render(user_card, user)
@@ -73,8 +73,8 @@ fn create(req: CreateUserRequest) -> OkResponse {
 }
 
 // DELETE /users/:id
-delete!(":id") {
-    fn delete(id: i32) -> OkResponse {
+delete!(":id")
+fn delete(id: i32) -> OkResponse {
     db::delete_user(id)?;
     Ok().toast("Deleted!")
 }
@@ -164,13 +164,13 @@ use rhtmx::{html, Html, Ok, get, post, delete};
 // Handlers
 // ============================================================================
 
-#[get]
+get!()
 fn index() -> rhtmx::OkResponse {
     let users = db::get_users()?;
     Ok().render(users_page, users)
 }
 
-#[post]
+post!()
 fn create(req: CreateUserRequest) -> rhtmx::OkResponse {
     let user = db::create_user(req)?;
 
@@ -180,8 +180,8 @@ fn create(req: CreateUserRequest) -> rhtmx::OkResponse {
         .toast("User created!")
 }
 
-delete!(":id") {
-    fn delete(id: i32) -> rhtmx::OkResponse {
+delete!(":id")
+fn delete(id: i32) -> rhtmx::OkResponse {
     db::delete_user(id)?;
 
     Ok()
@@ -273,7 +273,7 @@ my-app/
 
 ```rust
 // ✓ Handlers = Logic
-#[get]
+get!()
 fn index() -> OkResponse {
     let data = fetch_data();
     Ok().render(page, data)

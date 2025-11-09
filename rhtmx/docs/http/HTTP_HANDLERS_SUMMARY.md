@@ -11,19 +11,19 @@ We've successfully implemented **HTTP verb macros** (`get!`, `post!`, `put!`, `p
 ### 1. **HTTP Verb Macros** - Clean Route Definition
 
 ```rust
-get! {
-    fn index() -> OkResponse {
+get!()
+fn index() -> OkResponse {
     Ok().render(users_page, get_users())
 }
 
-#[post]
+post!()
 fn create(req: CreateUserRequest) -> OkResponse {
     let user = db::create_user(req)?;
     Ok().render(user_card, user).toast("Created!")
 }
 
-delete!(":id") {
-    fn delete(id: i32) -> OkResponse {
+delete!(":id")
+fn delete(id: i32) -> OkResponse {
     db::delete_user(id)?;
     Ok().toast("Deleted!")
 }
@@ -39,11 +39,11 @@ delete!(":id") {
 ### 2. **Path Parameters** - Dynamic Routes
 
 ```rust
-get!(":id") {
-    fn get_user(id: i32) -> OkResponse { ... }
+get!(":id")
+fn get_user(id: i32) -> OkResponse { ... }
 
-get!(":user_id/posts/:post_id") {
-    fn get_post(user_id: i32, post_id: i32) -> OkResponse { ... }
+get!(":user_id/posts/:post_id")
+fn get_post(user_id: i32, post_id: i32) -> OkResponse { ... }
 ```
 
 ### 3. **File-Based Routing** - Convention Over Configuration
@@ -70,7 +70,7 @@ struct CreateUserRequest {
     email: String,
 }
 
-#[post]
+post!()
 fn create(req: CreateUserRequest) -> OkResponse {
     // req is automatically deserialized from request body
     let user = db::create_user(req.name, req.email)?;
@@ -81,8 +81,8 @@ fn create(req: CreateUserRequest) -> OkResponse {
 ### 5. **Response Builders** - Chainable API
 
 ```rust
-post! {
-    fn update(id: i32, req: UpdateRequest) -> OkResponse {
+post!()
+fn update(id: i32, req: UpdateRequest) -> OkResponse {
     let user = db::update_user(id, req)?;
 
     Ok()
@@ -105,8 +105,8 @@ post! {
 ### 6. **Error Handling** - Result-Based
 
 ```rust
-post! {
-    fn create(req: CreateRequest) -> Result<OkResponse, ErrorResponse> {
+post!()
+fn create(req: CreateRequest) -> Result<OkResponse, ErrorResponse> {
     let errors = validate(&req);
 
     if !errors.is_empty() {
@@ -294,7 +294,7 @@ HX-Trigger: {"showToast": "Deleted!"}
 ### Core Files
 
 1. **`rhtmx-macro/src/lib.rs`** - Macro definitions
-   - 5 HTTP verb macros (#[get], #[post], #[put], #[patch], #[delete])
+   - 5 HTTP verb macros (get!, post!, put!, patch!, delete!)
    - Integration with macro system
 
 2. **`rhtmx-macro/src/http.rs`** - Implementation
@@ -419,11 +419,11 @@ app.route("/users/{id}", web::delete().to(delete_user))
 **Implementation:** ✓ Complete and production-ready
 
 **Features Implemented:**
-- ✅ #[get] macro
-- ✅ #[post] macro
-- ✅ #[put] macro
-- ✅ #[patch] macro
-- ✅ #[delete] macro
+- ✅ get! macro
+- ✅ post! macro
+- ✅ put! macro
+- ✅ patch! macro
+- ✅ delete! macro
 - ✅ Path parameters (`:id`, `:user_id/posts/:post_id`)
 - ✅ Query parameters
 - ✅ Type-safe requests
@@ -456,7 +456,7 @@ struct UpdateUserRequest {
 }
 
 // GET /users/:id
-#[get]
+get!()
 fn get_user(id: i32) -> Result<OkResponse, ErrorResponse> {
     let user = db::get_user(id)
         .ok_or_else(|| Error().message("User not found"))?;
@@ -465,7 +465,7 @@ fn get_user(id: i32) -> Result<OkResponse, ErrorResponse> {
 }
 
 // POST /users/:id - Update user
-#[post]
+post!()
 fn update_user(id: i32, req: UpdateUserRequest) -> Result<OkResponse, ErrorResponse> {
     if req.name.is_empty() {
         return Err(Error()
@@ -482,7 +482,7 @@ fn update_user(id: i32, req: UpdateUserRequest) -> Result<OkResponse, ErrorRespo
 }
 
 // DELETE /users/:id
-#[delete]
+delete!()
 fn delete_user(id: i32) -> OkResponse {
     db::delete_user(id).ok();
 

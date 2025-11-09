@@ -87,18 +87,18 @@ Redirect()
 ## HTTP Handlers
 
 ```rust
-#[get]
+get!()
 fn index() -> OkResponse {
     Ok().render(page, data)
 }
 
-#[post]
+post!()
 fn create(req: Request) -> OkResponse {
     Ok().render(component, data)
         .toast("Created!")
 }
 
-#[delete(":id")]
+delete!(":id")
 fn delete(id: i32) -> OkResponse {
     Ok().toast("Deleted!")
 }

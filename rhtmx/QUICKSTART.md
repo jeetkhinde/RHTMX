@@ -18,7 +18,7 @@ rhtmx = { path = "../rhtmx" }  # Or use the crates.io version when published
 ```rust
 use rhtmx::{html, Html, Ok, get};
 
-#[get]
+get!()
 fn hello() -> rhtmx::OkResponse {
     Ok().render(hello_page, "World")
 }
@@ -36,7 +36,7 @@ fn hello_page(name: &str) -> Html {
 
 ```rust
 // 1. HTTP Handler - Handles routing and logic
-#[get]  // Maps to GET request
+get!()  // Maps to GET request
 fn hello() -> rhtmx::OkResponse {
     // Your business logic here
     let data = "World";
@@ -63,11 +63,11 @@ fn hello_page(name: &str) -> Html {
 Use `get!`, `post!`, `put!`, `patch!`, `delete!` to define route handlers:
 
 ```rust
-#[get]          // GET requests
-#[post]         // POST requests
-#[put(":id")]   // PUT with path parameter
-#[delete(":id")] // DELETE with path parameter
-#[patch(":id")] // PATCH with path parameter
+get!()          // GET requests
+post!()         // POST requests
+put!(":id")     // PUT with path parameter
+delete!(":id")  // DELETE with path parameter
+patch!(":id")   // PATCH with path parameter
 ```
 
 **📖 Full documentation:** [HTTP Handlers Guide](./docs/http/HTTP_HANDLERS_GUIDE.md)
@@ -134,7 +134,7 @@ struct Todo {
 }
 
 // GET /todos - List all todos
-#[get]
+get!()
 fn list_todos() -> rhtmx::OkResponse {
     let todos = vec![
         Todo { id: 1, text: "Learn RHTMX".to_string(), done: true },
@@ -145,7 +145,7 @@ fn list_todos() -> rhtmx::OkResponse {
 }
 
 // POST /todos - Create new todo
-#[post]
+post!()
 fn create_todo(text: String) -> rhtmx::OkResponse {
     let todo = Todo {
         id: 3,
@@ -203,8 +203,8 @@ fn todo_item(todo: Todo) -> Html {
 ### 1. Form Handling
 
 ```rust
-post! {
-    fn submit_form(req: FormData) -> rhtmx::OkResponse {
+post!()
+fn submit_form(req: FormData) -> rhtmx::OkResponse {
     // Validate
     if req.name.is_empty() {
         return Error()
@@ -225,8 +225,8 @@ post! {
 ### 2. OOB Updates
 
 ```rust
-post! {
-    fn add_item(item: Item) -> rhtmx::OkResponse {
+post!()
+fn add_item(item: Item) -> rhtmx::OkResponse {
     save(item.clone());
 
     Ok()

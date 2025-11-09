@@ -184,7 +184,7 @@ pub fn get_users() {
 ### After (Compile-Time System)
 ```rust
 // Handler: Pure logic
-#[get]
+get!()
 fn index() -> OkResponse {
     let users = db::get_users()?;
     Ok().render(users_list, users)
@@ -262,14 +262,14 @@ $ cargo build
 // File: pages/Users.rhtml
 
 // GET /users
-#[get]
+get!()
 fn index() -> OkResponse {
     let users = db::get_users()?;
     Ok().render(users_page, users)
 }
 
 // POST /users
-#[post]
+post!()
 fn create(req: CreateUserRequest) -> OkResponse {
     let user = db.create_user(req)?;
 
@@ -280,7 +280,7 @@ fn create(req: CreateUserRequest) -> OkResponse {
 }
 
 // DELETE /users/:id
-#[delete(":id")]
+delete!(":id")
 fn delete(id: i32) -> OkResponse {
     db.delete_user(id)?;
 
@@ -347,7 +347,7 @@ fn user_count(count: usize) -> Html {
 - ⏳ r-else-if and r-else directives
 - ⏳ r-show directive (CSS display control)
 - ⏳ r-class:name directive (conditional classes)
-- ⏳ HTTP verb macros (#[get], #[post], etc.)
+- ✅ HTTP verb macros (get!, post!, put!, patch!, delete!)
 
 ### Medium Term
 - ⏳ r-match directive (pattern matching)

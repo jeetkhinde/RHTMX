@@ -328,8 +328,8 @@ Define route handlers with HTTP verb macros (`get!`, `post!`, `put!`, `patch!`, 
 ### Basic Handler
 
 ```rust
-get! {
-    fn list_users() -> OkResponse {
+get!()
+fn list_users() -> OkResponse {
     let users = db::get_users()?;
     Ok().render(users_page, users)
 }
@@ -338,14 +338,14 @@ get! {
 ### With Path Parameters
 
 ```rust
-get!(":id") {
-    fn get_user(id: i32) -> OkResponse {
+get!(":id")
+fn get_user(id: i32) -> OkResponse {
     let user = db::get_user(id)?;
     Ok().render(user_detail, user)
 }
 
-delete!(":id") {
-    fn delete_user(id: i32) -> OkResponse {
+delete!(":id")
+fn delete_user(id: i32) -> OkResponse {
     db::delete_user(id)?;
     Ok().toast("User deleted!")
 }
@@ -354,8 +354,8 @@ delete!(":id") {
 ### With Query Parameters
 
 ```rust
-get!("partial=stats") {
-    fn user_stats() -> OkResponse {
+get!("partial=stats")
+fn user_stats() -> OkResponse {
     let stats = calculate_stats()?;
     Ok().render(stats_component, stats)
 }
@@ -375,8 +375,8 @@ get!("partial=stats") {
 ### Ok() - Success Response
 
 ```rust
-post! {
-    fn create_user(req: CreateUserRequest) -> OkResponse {
+post!()
+fn create_user(req: CreateUserRequest) -> OkResponse {
     let user = db::create_user(req)?;
 
     Ok()
@@ -398,8 +398,8 @@ post! {
 ### Error() - Error Response
 
 ```rust
-post! {
-    fn create_user(req: CreateUserRequest) -> Result<OkResponse, ErrorResponse> {
+post!()
+fn create_user(req: CreateUserRequest) -> Result<OkResponse, ErrorResponse> {
     let errors = validate(&req);
 
     if !errors.is_empty() {
@@ -424,8 +424,8 @@ post! {
 ### Redirect() - Redirect Response
 
 ```rust
-post! {
-    fn login(req: LoginRequest) -> RedirectResponse {
+post!()
+fn login(req: LoginRequest) -> RedirectResponse {
     if authenticate(&req) {
         Redirect()
             .to("/dashboard")
@@ -468,14 +468,14 @@ struct Task {
 }
 
 // GET /tasks
-#[get]
+get!()
 fn list_tasks() -> OkResponse {
     let tasks = db::get_tasks()?;
     Ok().render(tasks_page, tasks)
 }
 
 // POST /tasks
-#[post]
+post!()
 fn create_task(req: CreateTaskRequest) -> OkResponse {
     let task = db::create_task(req)?;
 
@@ -486,8 +486,8 @@ fn create_task(req: CreateTaskRequest) -> OkResponse {
 }
 
 // DELETE /tasks/:id
-delete!(":id") {
-    fn delete_task(id: i32) -> OkResponse {
+delete!(":id")
+fn delete_task(id: i32) -> OkResponse {
     db::delete_task(id)?;
 
     Ok()

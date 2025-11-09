@@ -10,19 +10,19 @@ use serde::Deserialize;
 ## Basic Handler
 
 ```rust
-get! {
-    fn index() -> OkResponse {
+get!()
+fn index() -> OkResponse {
     Ok().render(users_page, data)
 }
 
-#[post]
+post!()
 fn create(req: CreateRequest) -> OkResponse {
     Ok().render(component, data)
         .toast("Created!")
 }
 
-delete!(":id") {
-    fn delete(id: i32) -> OkResponse {
+delete!(":id")
+fn delete(id: i32) -> OkResponse {
     Ok().toast("Deleted!")
 }
 ```
@@ -31,23 +31,23 @@ delete!(":id") {
 
 | Macro | HTTP Method |
 |-------|------------|
-| `get!` | GET |
-| `post!` | POST |
-| `#[put(":id")]` | PUT |
-| `#[patch(":id")]` | PATCH |
-| `#[delete(":id")]` | DELETE |
+| `get!()` | GET |
+| `post!()` | POST |
+| `put!(":id")` | PUT |
+| `patch!(":id")` | PATCH |
+| `delete!(":id")` | DELETE |
 
 ## Path Parameters
 
 ```rust
-get!(":id") {
-    fn get_user(id: i32) -> OkResponse {
+get!(":id")
+fn get_user(id: i32) -> OkResponse {
     let user = db::get_user(id)?;
     Ok().render(user_detail, user)
 }
 
-get!(":user_id/posts/:post_id") {
-    fn get_post(user_id: i32, post_id: i32) -> OkResponse {
+get!(":user_id/posts/:post_id")
+fn get_post(user_id: i32, post_id: i32) -> OkResponse {
     let post = db::get_post(user_id, post_id)?;
     Ok().render(post_page, post)
 }
@@ -56,8 +56,8 @@ get!(":user_id/posts/:post_id") {
 ## Query Parameters
 
 ```rust
-get!("partial=items") {
-    fn load_items(page: i32) -> OkResponse {
+get!("partial=items")
+fn load_items(page: i32) -> OkResponse {
     let items = db::get_items(page)?;
     Ok().html(html! { <div r-for="item in items">{item.name}</div> })
 }
@@ -72,7 +72,7 @@ struct CreateUserRequest {
     email: String,
 }
 
-#[post]
+post!()
 fn create(req: CreateUserRequest) -> OkResponse {
     let user = db::create_user(req.name, req.email)?;
     Ok().render(user_card, user)
@@ -147,10 +147,10 @@ pages/
 
 ```rust
 // pages/users/[id].rs
-#[get]
+get!()
 fn get_user(id: i32) -> OkResponse { ... }  // GET /users/:id
 
-#[post]
+post!()
 fn update_user(id: i32, req: UpdateRequest) -> OkResponse { ... }  // POST /users/:id
 ```
 
@@ -159,8 +159,8 @@ fn update_user(id: i32, req: UpdateRequest) -> OkResponse { ... }  // POST /user
 ### HTMX Partial (No Layout)
 
 ```rust
-get! {
-    fn load_more() -> OkResponse {
+get!()
+fn load_more() -> OkResponse {
     let items = db::get_items()?;
     Ok().html(html! {
         <div r-for="item in items">{item_card(item)}</div>
@@ -171,8 +171,8 @@ get! {
 ### Full Page (With Layout)
 
 ```rust
-get! {
-    fn index() -> OkResponse {
+get!()
+fn index() -> OkResponse {
     let content = html! { <div>...</div> };
     Ok().html(layouts::root::layout(
         content,
@@ -184,8 +184,8 @@ get! {
 ### OOB Updates
 
 ```rust
-post! {
-    fn update() -> OkResponse {
+post!()
+fn update() -> OkResponse {
     Ok()
         .render(main, data)              // Main update
         .render_oob("sidebar", sidebar, sidebar_data)  // Side update
@@ -196,8 +196,8 @@ post! {
 ### Error Response
 
 ```rust
-post! {
-    fn create(req: CreateRequest) -> Result<OkResponse, ErrorResponse> {
+post!()
+fn create(req: CreateRequest) -> Result<OkResponse, ErrorResponse> {
     if req.name.is_empty() {
         return Err(Error()
             .message("Name is required")
@@ -212,8 +212,8 @@ post! {
 ### Form Validation
 
 ```rust
-post! {
-    fn submit(req: FormData) -> Result<OkResponse, ErrorResponse> {
+post!()
+fn submit(req: FormData) -> Result<OkResponse, ErrorResponse> {
     let errors = validate(&req);
 
     if !errors.is_empty() {

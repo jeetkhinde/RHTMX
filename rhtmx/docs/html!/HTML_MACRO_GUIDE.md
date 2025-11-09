@@ -304,14 +304,14 @@ use rhtml::{Ok, Error, html, Html};
 // File: pages/Users.rhtml
 
 // GET /users - List all users
-#[get]
+get!()
 fn index() -> OkResponse {
     let users = db::get_users()?;
     Ok().render(users_page, users)
 }
 
 // POST /users - Create new user
-#[post]
+post!()
 fn create(req: CreateUserRequest) -> Result<OkResponse, ErrorResponse> {
     // Validate
     if let Err(errors) = validate(&req) {
@@ -332,7 +332,7 @@ fn create(req: CreateUserRequest) -> Result<OkResponse, ErrorResponse> {
 }
 
 // DELETE /users/:id - Delete user
-#[delete(":id")]
+delete!(":id")
 fn delete(id: i32) -> OkResponse {
     db.delete_user(id)?;
 
@@ -527,7 +527,7 @@ pub fn get_users() {
 
 ### After (Compile-Time)
 ```rust
-#[get]
+get!()
 fn index() -> OkResponse {
     let users = db::get_users()?;
     Ok().render(users_list, users)
