@@ -20,7 +20,7 @@ The `html!` macro is RHTML's compile-time HTML generation system. It provides JS
 use rhtml::html;
 use rhtml::Html;
 
-fn simple_card() -> Html {
+fn simple_card() {
     html! {
         <div class="card">
             <h1>Hello, World!</h1>
@@ -50,7 +50,7 @@ RHTML provides three convenient response builders for HTTP handlers:
 use rhtml::{Ok, Html, html};
 
 #[post]
-fn create_user(req: CreateUserRequest) -> OkResponse {
+fn create_user(req: CreateUserRequest) {
     let user = db.create_user(req)?;
 
     Ok()

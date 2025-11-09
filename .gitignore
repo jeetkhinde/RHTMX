@@ -1,0 +1,15 @@
+# Compiled output
+/target/
+
+# Cargo lock file (for libraries)
+/Cargo.lock
+
+# IDE / Editor files
+.idea/
+.vscode/
+
+# Backup / OS files
+*.swp
+*.bak
+*.tmp
+*.DS_Store
