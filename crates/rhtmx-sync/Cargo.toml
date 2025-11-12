@@ -1,0 +1,48 @@
+# crates/rhtmx-sync/Cargo.toml
+[package]
+name = "rhtmx-sync"
+version = "0.1.0"
+edition = "2021"
+authors = ["RHTMX Contributors"]
+license = "MIT"
+description = "Automatic IndexedDB synchronization for RHTMX applications with minimal code."
+repository = "https://github.com/jeetkhinde/RHTMX"
+keywords = ["sync", "indexeddb", "offline", "htmx", "web"]
+categories = ["web-programming"]
+readme = "README.md"
+
+[lib]
+name = "rhtmx_sync"
+path = "src/lib.rs"
+
+[dependencies]
+# Local macro crate
+rhtmx-macro = { path = "../rhtmx-macro" }
+
+# Web framework & async runtime
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = "0.1"
+futures = "0.3"
+
+# Serialization & data
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = "1.0"
+
+# Logging & async utilities
+tracing = { workspace = true }
+async-stream = "0.3"
+
+[dev-dependencies]
+axum-test = "14.0"
+pretty_assertions = "1.4"
+rstest = "0.22"

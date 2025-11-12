@@ -1,0 +1,36 @@
+# crates/rhtmx/Cargo.toml
+[package]
+name = "rhtmx"
+version = "0.1.0"
+edition = "2021"
+description = "RHTMX - Rust + HTMX framework with compile-time HTML generation"
+license = "MIT"
+repository = "https://github.com/jeetkhinde/RHTMX"
+
+[lib]
+name = "rhtmx"
+path = "src/lib.rs"
+
+[dependencies]
+rhtmx-macro = { path = "../rhtmx-macro" }
+
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+regex = { workspace = true }
+once_cell = { workspace = true }
+maud = { workspace = true }
+
+[features]
+default = []
+sync = []
+router = []
+
+[dev-dependencies]
+tokio = { workspace = true }
+serde_json = { workspace = true }
+pretty_assertions = "1.4"
+rstest = "0.22"

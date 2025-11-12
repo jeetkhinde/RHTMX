@@ -1,0 +1,21 @@
+# crates/rhtmx-parser/Cargo.toml
+[package]
+name = "rhtmx-parser"
+version = "0.1.0"
+edition = "2021"
+description = "HTML and attribute parser for the RHTMX framework"
+license = "MIT"
+repository = "https://github.com/jeetkhinde/RHTMX"
+
+[lib]
+name = "rhtmx_parser"
+path = "src/lib.rs"
+
+[dependencies]
+regex = { workspace = true }
+serde = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = "1.4"
+rstest = "0.22"
