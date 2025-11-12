@@ -1,0 +1,50 @@
+[package]
+name = "rhtmx-sync"
+version = "0.1.0"
+edition = "2021"
+authors = ["RHTMX Contributors"]
+license = "MIT"
+description = "Automatic IndexedDB synchronization for RHTMX applications with minimal code"
+repository = "https://github.com/jeetkhinde/RHTMX"
+keywords = ["sync", "indexeddb", "offline", "htmx", "web"]
+categories = ["web-programming"]
+
+[lib]
+name = "rhtmx_sync"
+path = "src/lib.rs"
+
+[dependencies]
+# Re-export the macro
+rhtmx-sync-macro = { path = "./rhtmx-sync-macro" }
+
+# Web framework
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["fs", "trace"] }
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Database
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls", "chrono", "uuid"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+
+# SSE
+async-stream = "0.3"
+
+[dev-dependencies]
+axum-test = "14.0"
