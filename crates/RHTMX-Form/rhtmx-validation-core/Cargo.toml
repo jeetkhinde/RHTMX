@@ -1,0 +1,18 @@
+[package]
+name = "rhtmx-validation-core"
+version = "0.1.0"
+edition = "2021"
+description = "Core validation functions for RHTMX (no_std compatible)"
+license = "MIT"
+
+[lib]
+name = "rhtmx_validation_core"
+path = "src/lib.rs"
+
+[dependencies]
+# No dependencies - pure Rust validation logic
+# This enables use in both server (std) and WASM (no_std) environments
+
+[features]
+default = ["std"]
+std = []
