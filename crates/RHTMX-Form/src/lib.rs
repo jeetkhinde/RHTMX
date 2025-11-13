@@ -203,7 +203,44 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
 /// - `#[regex(pattern)]` → `pattern="..."` + `"pattern": "..."`
 /// - And many more (see Validate documentation)
 ///
-#[proc_macro_derive(FormField)]
+#[proc_macro_derive(
+    FormField,
+    attributes(
+        email,
+        no_public_domains,
+        blocked_domains,
+        password,
+        min,
+        max,
+        range,
+        min_length,
+        max_length,
+        length,
+        regex,
+        url,
+        allow_whitespace,
+        required,
+        contains,
+        not_contains,
+        starts_with,
+        ends_with,
+        equals,
+        not_equals,
+        equals_field,
+        depends_on,
+        min_items,
+        max_items,
+        unique,
+        enum_variant,
+        message,
+        label,
+        message_key,
+        custom,
+        query,
+        form,
+        path
+    )
+)]
 pub fn derive_form_field(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     validation::impl_form_field(&input).into()
