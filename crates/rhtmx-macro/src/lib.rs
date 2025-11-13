@@ -7,7 +7,6 @@ use syn::{parse_macro_input, DeriveInput};
 
 mod html;
 mod http;
-mod validation;
 
 /// The html! macro for compile-time HTML generation
 ///
@@ -253,92 +252,6 @@ pub fn delete(input: TokenStream) -> TokenStream {
     http::http_handler("DELETE", input)
 }
 
-/// Derive macro for automatic validation
-///
-/// Generates a `Validate` trait implementation that validates struct fields
-/// based on attributes like #[email], #[min], #[max], etc.
-///
-/// # Example
-///
-/// ```ignore
-/// use rhtmx::Validate;
-/// use serde::Deserialize;
-///
-/// #[derive(Validate, Deserialize)]
-/// struct CreateUserRequest {
-///     #[min_length(3)]
-///     #[max_length(50)]
-///     name: String,
-///
-///     #[email]
-///     #[no_public_domains]
-///     email: String,
-///
-///     #[password("strong")]
-///     password: String,
-///
-///     #[min(18)]
-///     #[max(120)]
-///     age: i32,
-///
-///     bio: Option<String>,  // Optional fields
-/// }
-/// ```
-///
-/// # Available Validators
-///
-/// **Email Validators:**
-/// - `#[email]` - Valid email format
-/// - `#[no_public_domains]` - Reject gmail, yahoo, etc.
-/// - `#[blocked_domains("a.com", "b.com")]` - Block specific domains
-///
-/// **Password Validators:**
-/// - `#[password("strong")]` - 8+ chars, upper, lower, digit, special
-/// - `#[password("medium")]` - 8+ chars, upper, lower, digit
-/// - `#[password("basic")]` - 6+ chars
-/// - `#[password(r"regex")]` - Custom regex pattern
-///
-/// **Numeric Validators:**
-/// - `#[min(n)]` - Minimum value
-/// - `#[max(n)]` - Maximum value
-/// - `#[range(min, max)]` - Value range
-///
-/// **String Validators:**
-/// - `#[min_length(n)]` - Minimum length
-/// - `#[max_length(n)]` - Maximum length
-/// - `#[length(min, max)]` - Length range
-/// - `#[regex(r"pattern")]` - Custom regex
-/// - `#[url]` - Valid URL format
-///
-/// **General:**
-/// - `#[required]` - Required for Option<T> fields
-/// - `#[allow_whitespace]` - Don't trim whitespace
-///
-#[proc_macro_derive(
-    Validate,
-    attributes(
-        email,
-        no_public_domains,
-        blocked_domains,
-        password,
-        min,
-        max,
-        range,
-        min_length,
-        max_length,
-        length,
-        regex,
-        url,
-        allow_whitespace,
-        required,
-        query,
-        form
-    )
-)]
-pub fn derive_validate(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    validation::impl_validate(&input).into()
-}
 
 /// Derive macro for Syncable trait
 ///

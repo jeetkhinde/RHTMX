@@ -15,7 +15,10 @@ pub mod action_executor;
 pub mod actions;
 
 // Re-export the html! macro from rhtmx-macro
-pub use rhtmx_macro::{html, css, get, post, put, patch, delete, Validate};
+pub use rhtmx_macro::{html, css, get, post, put, patch, delete};
+
+// Re-export the Validate derive macro from rhtmx-form
+pub use rhtmx_form::Validate;
 
 // Re-export core types and response builders
 pub use html::{

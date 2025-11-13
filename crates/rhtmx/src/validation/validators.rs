@@ -1,124 +1,33 @@
 // File: src/validation/validators.rs
-// Purpose: Individual validator functions
+// Purpose: Re-export validators from rhtmx-validation-core + std-only validators
+// This maintains backward compatibility while using the shared validation logic
 
 use regex::Regex;
 use once_cell::sync::Lazy;
 
-// Common public email domains
-static PUBLIC_DOMAINS: &[&str] = &[
-    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
-    "aol.com", "icloud.com", "mail.com", "protonmail.com",
-    "yandex.com", "zoho.com", "gmx.com", "mail.ru"
-];
+// Re-export from validation-core (no_std compatible validators)
+pub use rhtmx_validation_core::email::{
+    is_valid_email,
+    is_public_domain,
+    is_blocked_domain,
+};
 
-// Password patterns (note: regex crate doesn't support lookaheads, so we validate manually)
-static PASSWORD_BASIC_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^.{6,}$").unwrap()
-});
+pub use rhtmx_validation_core::password::validate_password;
 
-static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap()
-});
+pub use rhtmx_validation_core::string::is_valid_url;
 
+// Regex matching (requires std, so kept here)
 static URL_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"^https?://[^\s/$.?#].[^\s]*$").unwrap()
 });
 
-/// Validate email format
-pub fn is_valid_email(email: &str) -> bool {
-    EMAIL_REGEX.is_match(email)
-}
-
-/// Check if email is from a public domain
-pub fn is_public_domain(email: &str) -> bool {
-    if let Some(domain) = email.split('@').nth(1) {
-        PUBLIC_DOMAINS.iter().any(|&d| d.eq_ignore_ascii_case(domain))
-    } else {
-        false
-    }
-}
-
-/// Check if email is from a blocked domain
-pub fn is_blocked_domain(email: &str, blocked: &[String]) -> bool {
-    if let Some(domain) = email.split('@').nth(1) {
-        blocked.iter().any(|d| d.eq_ignore_ascii_case(domain))
-    } else {
-        false
-    }
-}
-
-/// Validate password with pattern
-pub fn validate_password(password: &str, pattern: &str) -> Result<(), String> {
-    match pattern {
-        "strong" => {
-            // Validate password manually: at least 8 chars, uppercase, lowercase, digit, special char
-            if password.len() < 8 {
-                return Err("Password must be at least 8 characters".to_string());
-            }
-            if !password.chars().any(|c| c.is_uppercase()) {
-                return Err("Password must contain at least one uppercase letter".to_string());
-            }
-            if !password.chars().any(|c| c.is_lowercase()) {
-                return Err("Password must contain at least one lowercase letter".to_string());
-            }
-            if !password.chars().any(|c| c.is_numeric()) {
-                return Err("Password must contain at least one digit".to_string());
-            }
-            if !password.chars().any(|c| "@$!%*?&".contains(c)) {
-                return Err("Password must contain at least one special character (@$!%*?&)".to_string());
-            }
-            Ok(())
-        }
-        "medium" => {
-            // Validate password manually: at least 8 chars, uppercase, lowercase, digit
-            if password.len() < 8 {
-                return Err("Password must be at least 8 characters".to_string());
-            }
-            if !password.chars().any(|c| c.is_uppercase()) {
-                return Err("Password must contain at least one uppercase letter".to_string());
-            }
-            if !password.chars().any(|c| c.is_lowercase()) {
-                return Err("Password must contain at least one lowercase letter".to_string());
-            }
-            if !password.chars().any(|c| c.is_numeric()) {
-                return Err("Password must contain at least one digit".to_string());
-            }
-            Ok(())
-        }
-        "basic" => {
-            if PASSWORD_BASIC_REGEX.is_match(password) {
-                Ok(())
-            } else {
-                Err("Password must be at least 6 characters".to_string())
-            }
-        }
-        // Custom regex pattern
-        _ => {
-            if let Ok(regex) = Regex::new(pattern) {
-                if regex.is_match(password) {
-                    Ok(())
-                } else {
-                    Err("Password does not meet requirements".to_string())
-                }
-            } else {
-                Err("Invalid password pattern".to_string())
-            }
-        }
-    }
-}
-
-/// Check if string matches regex pattern
+/// Check if string matches regex pattern (std-only function)
 pub fn matches_regex(value: &str, pattern: &str) -> bool {
     if let Ok(regex) = Regex::new(pattern) {
         regex.is_match(value)
     } else {
         false
     }
-}
-
-/// Validate URL format
-pub fn is_valid_url(url: &str) -> bool {
-    URL_REGEX.is_match(url)
 }
 
 #[cfg(test)]

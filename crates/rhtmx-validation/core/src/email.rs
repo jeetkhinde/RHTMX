@@ -96,7 +96,7 @@ pub fn is_valid_email(email: &str) -> bool {
 /// Checks if email domain is a public domain (gmail, yahoo, etc.)
 pub fn is_public_domain(email: &str) -> bool {
     if let Some(domain) = email.split('@').nth(1) {
-        PUBLIC_DOMAINS.contains(&domain)
+        PUBLIC_DOMAINS.iter().any(|&d| d.eq_ignore_ascii_case(domain))
     } else {
         false
     }
@@ -141,6 +141,8 @@ mod tests {
     fn test_public_domains() {
         assert!(is_public_domain("user@gmail.com"));
         assert!(is_public_domain("user@yahoo.com"));
+        assert!(is_public_domain("user@GMAIL.COM"));  // Case-insensitive
+        assert!(is_public_domain("user@Yahoo.Com"));  // Case-insensitive
         assert!(!is_public_domain("user@company.com"));
     }
 
