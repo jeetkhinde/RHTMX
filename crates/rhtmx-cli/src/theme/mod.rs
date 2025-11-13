@@ -1,5 +1,5 @@
 pub mod loader;
 pub mod manifest;
-pub mod registry;
 
-pub use manifest::ThemeManifest;
+pub use loader::ThemeManager;
+pub use manifest::{ProjectConfig, ThemeConfig, ThemeManifest, ThemeSource};

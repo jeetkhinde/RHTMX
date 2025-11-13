@@ -1,6 +1,8 @@
 use anyhow::Result;
 use colored::Colorize;
+use std::env;
 use crate::ThemeCommands;
+use crate::theme::ThemeManager;
 
 pub fn execute(command: ThemeCommands) -> Result<()> {
     match command {
@@ -14,23 +16,24 @@ pub fn execute(command: ThemeCommands) -> Result<()> {
             println!("{}", "⚠ Theme init not yet implemented".yellow());
             println!("Coming soon: Will create theme template");
         }
-        ThemeCommands::List => {
-            println!("{}", "Available themes:".green().bold());
+        ThemeCommands::CacheClear => {
+            println!("{}", "Clearing theme cache...".green().bold());
             println!();
 
-            // TODO: List themes from registry
-            println!("{}", "⚠ Theme list not yet implemented".yellow());
-            println!("Coming soon: Will list available themes");
+            let current_dir = env::current_dir()?;
+            let manager = ThemeManager::new(&current_dir);
+            manager.clear_cache()?;
         }
-        ThemeCommands::Install { source } => {
-            println!("{}", "Installing theme...".green().bold());
-            println!();
-            println!("Source: {}", source.cyan());
+        ThemeCommands::Update { force } => {
+            println!("{}", "Updating theme...".green().bold());
             println!();
 
-            // TODO: Install theme from source
-            println!("{}", "⚠ Theme install not yet implemented".yellow());
-            println!("Coming soon: Will install theme from git or local path");
+            let current_dir = env::current_dir()?;
+            let manager = ThemeManager::new(&current_dir);
+            manager.load_and_merge(force)?;
+
+            println!();
+            println!("{}", "Theme updated successfully!".green().bold());
         }
     }
 

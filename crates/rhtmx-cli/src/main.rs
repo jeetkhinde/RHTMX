@@ -73,13 +73,15 @@ enum ThemeCommands {
         name: String,
     },
 
-    /// List available themes
-    List,
+    /// Clear theme cache
+    #[command(name = "cache-clear")]
+    CacheClear,
 
-    /// Install a theme from git or local path
-    Install {
-        /// Theme source (git URL or local path)
-        source: String,
+    /// Update theme to latest version
+    Update {
+        /// Force re-download even if cached
+        #[arg(short, long)]
+        force: bool,
     },
 }
 

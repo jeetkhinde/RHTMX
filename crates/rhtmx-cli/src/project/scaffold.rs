@@ -235,8 +235,9 @@ fn create_gitignore(project_path: &Path) -> Result<()> {
 *.pdb
 
 # RHTMX
-/.rhtmx/
-/dist/
+/.rhtmx/          # Merged files (theme + user)
+/.themes/         # Downloaded themes cache
+/dist/            # Build output
 
 # IDE
 .vscode/
