@@ -30,6 +30,7 @@ toml = { workspace = true }
 tokio = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 tower-livereload = { workspace = true, optional = true }
+notify = { workspace = true, optional = true }
 
 # Utilities
 anyhow = { workspace = true }
@@ -42,4 +43,4 @@ colored = "2.1"
 
 [features]
 default = ["dev-server"]
-dev-server = ["tokio", "axum", "tower-livereload"]
+dev-server = ["tokio", "axum", "tower-livereload", "notify"]

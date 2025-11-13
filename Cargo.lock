@@ -1756,6 +1756,7 @@ dependencies = [
  "axum",
  "clap",
  "colored",
+ "notify",
  "rhtmx",
  "rhtmx-parser",
  "rhtmx-router",
