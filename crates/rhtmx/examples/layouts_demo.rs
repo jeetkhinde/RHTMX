@@ -1,7 +1,7 @@
 // Example: Layout System Demo
 // Shows how to use layouts with RHTMX
 
-use rhtmx::{html, layouts};
+use rhtmx::{Html, layouts};
 
 fn main() {
     println!("=== RHTMX Layout System Demo ===\n");
@@ -32,7 +32,7 @@ fn main() {
 
 // ===== Example 1: Basic Root Layout =====
 
-fn basic_page() {
+fn basic_page() -> Html {
     // In a real app, this would be returned from a #[get] handler
     let content = Html(
         r#"<div class="container">

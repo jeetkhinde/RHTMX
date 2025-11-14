@@ -98,7 +98,7 @@ struct UpdateSettingsRequest {
 
 // ===== Helper Functions =====
 
-fn render_validation_errors(errors: &HashMap<String, String>) {
+fn render_validation_errors(errors: &HashMap<String, String>) -> Html {
     let mut items = String::new();
     for (field, error) in errors {
         items.push_str(&format!("<li><strong>{}:</strong> {}</li>", field, error));

@@ -37,7 +37,7 @@ fn main() {
     println!("Pending status: {}", badge.0);
 
     // Test 3: Nested in function
-    fn render_status(status: UserStatus) {
+    fn render_status(status: UserStatus) -> Html {
         html! {
             <div class="status-badge" r-match="status">
                 <span r-when="UserStatus::Active" class="active">"✓ Active"</span>

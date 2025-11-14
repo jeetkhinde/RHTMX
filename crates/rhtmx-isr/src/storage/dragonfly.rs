@@ -101,9 +101,9 @@ impl Storage for DragonflyStorage {
             .context("Failed to serialize page")?;
 
         // Set with TTL based on revalidate_after
-        let ttl_secs = page.revalidate_after.as_secs() as usize;
+        let ttl_secs = page.revalidate_after.as_secs();
 
-        conn.set_ex(&full_key, json, ttl_secs)
+        conn.set_ex::<_, _, ()>(&full_key, json, ttl_secs)
             .await
             .context("Failed to set in Redis/Dragonfly")?;
 
@@ -114,7 +114,7 @@ impl Storage for DragonflyStorage {
         let full_key = self.full_key(key);
         let mut conn = self.manager.clone();
 
-        conn.del(&full_key)
+        conn.del::<_, ()>(&full_key)
             .await
             .context("Failed to delete from Redis/Dragonfly")?;
 

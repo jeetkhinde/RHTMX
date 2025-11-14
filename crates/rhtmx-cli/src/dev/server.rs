@@ -10,7 +10,7 @@ use axum::{
 #[cfg(feature = "dev-server")]
 use colored::Colorize;
 #[cfg(feature = "dev-server")]
-use rhtmx::{Config, TemplateLoader};
+use rhtmx::TemplateLoader;
 #[cfg(feature = "dev-server")]
 use std::path::Path;
 #[cfg(feature = "dev-server")]

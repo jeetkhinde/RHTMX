@@ -1,7 +1,7 @@
 // RHTMX Example: Complete Feature Demo
 // Demonstrates all RHTMX directives and features
 
-use rhtmx::{css, get, html, Ok};
+use rhtmx::{css, html, Html, Ok};
 
 // ============================================================================
 // Data Models
@@ -34,7 +34,7 @@ enum UserStatus {
 // Example 1: r-if, r-else-if, r-else
 // ============================================================================
 
-fn conditional_rendering_demo(score: i32) {
+fn conditional_rendering_demo(score: i32) -> Html {
     html! {
         <div class="score-display">
             <h3>Score: {score}</h3>
@@ -62,7 +62,7 @@ fn conditional_rendering_demo(score: i32) {
 // Example 2: r-match with r-when and r-default
 // ============================================================================
 
-fn status_badge(status: UserStatus) {
+fn status_badge(status: UserStatus) -> Html {
     html! {
         <div r-match="status" class="status-container">
             <span r-when="UserStatus::Active" class="badge badge-active">
@@ -81,7 +81,7 @@ fn status_badge(status: UserStatus) {
     }
 }
 
-fn role_badge(role: UserRole) {
+fn role_badge(role: UserRole) -> Html {
     html! {
         <div r-match="role" class="role-badge">
             <div r-when="UserRole::Admin" class="badge admin">
@@ -104,7 +104,7 @@ fn role_badge(role: UserRole) {
 // Example 3: css! macro with scoping
 // ============================================================================
 
-fn styled_user_card(user: User) {
+fn styled_user_card(user: User) -> Html {
     // Define scoped CSS for this component
     css! {
         scope: "user-card",
@@ -158,7 +158,7 @@ fn styled_user_card(user: User) {
 // Example 4: Combining all features
 // ============================================================================
 
-fn dashboard(users: Vec<User>) {
+fn dashboard(users: Vec<User>) -> Html {
     html! {
         <div class="dashboard">
             <header>
@@ -235,8 +235,9 @@ fn dashboard(users: Vec<User>) {
 // HTTP Handler Example
 // ============================================================================
 
-#[get]
-fn index() -> rhtmx::OkResponse {
+// NOTE: This is example code showing how a handler might look
+// The actual routing syntax depends on your web framework integration
+fn example_index_handler() -> Html {
     let users = vec![
         User {
             id: 1,
@@ -275,7 +276,7 @@ fn index() -> rhtmx::OkResponse {
         },
     ];
 
-    Ok().render(dashboard, users)
+    dashboard(users)
 }
 
 // ============================================================================

@@ -5,7 +5,7 @@ use colored::Colorize;
 #[cfg(feature = "dev-server")]
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 #[cfg(feature = "dev-server")]
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 #[cfg(feature = "dev-server")]
 use std::sync::Arc;
 #[cfg(feature = "dev-server")]

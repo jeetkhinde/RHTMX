@@ -4,6 +4,7 @@
 
 use rhtmx::action_executor::ActionResult;
 use rhtmx::RequestContext;
+use rhtmx::ValidateTrait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -172,7 +173,6 @@ fn format_validation_errors(context: &crate::form_context::FormContext) -> Strin
     html
 }
 */
-
 /// PATCH /examples/actions-validation/:id - Update a user
 pub async fn patch_actions_validation(_ctx: RequestContext) -> ActionResult {
     ActionResult::Html {

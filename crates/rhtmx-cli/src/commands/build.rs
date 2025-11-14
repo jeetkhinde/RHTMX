@@ -123,7 +123,7 @@ fn build_ssr(release: bool) -> Result<()> {
     Ok(())
 }
 
-fn build_ssg(release: bool) -> Result<()> {
+fn build_ssg(_release: bool) -> Result<()> {
     let current_dir = env::current_dir()?;
 
     // Step 1: Read configuration
@@ -328,7 +328,7 @@ fn expand_dynamic_route(
 
 /// Generate HTML files for all routes
 fn generate_html_files(
-    merged_path: &std::path::Path,
+    _merged_path: &std::path::Path,
     routes: &[RouteInfo],
     output_dir: &std::path::Path,
 ) -> Result<()> {
@@ -483,7 +483,7 @@ fn build_isr(release: bool) -> Result<()> {
     }
 
     // Read and modify Cargo.toml to add ISR dependency
-    let mut cargo_toml_content = fs::read_to_string(&cargo_toml_src)
+    let cargo_toml_content = fs::read_to_string(&cargo_toml_src)
         .context("Failed to read Cargo.toml")?;
 
     // Parse TOML

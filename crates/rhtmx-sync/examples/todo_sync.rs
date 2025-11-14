@@ -5,7 +5,8 @@ use axum::{
     routing::get,
     Router,
 };
-use rhtmx_sync::{Syncable, SyncEngine, SyncConfig};
+use rhtmx_macro::Syncable;
+use rhtmx_sync::{Syncable as SyncableTrait, SyncEngine, SyncConfig};
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::net::SocketAddr;

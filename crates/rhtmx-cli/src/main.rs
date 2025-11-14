@@ -7,7 +7,6 @@ mod dev;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use colored::Colorize;
 
 #[derive(Parser)]
 #[command(name = "rhtmx")]
