@@ -180,6 +180,8 @@ pub struct Route {
     pub metadata: HashMap<String, String>,
     /// Parameter constraints for validation (param_name → constraint)
     pub param_constraints: HashMap<String, ParameterConstraint>,
+    /// Alternative URL patterns that map to this route (for legacy URLs, i18n, etc.)
+    pub aliases: Vec<String>,
 }
 
 /// Result of matching a route against a path
@@ -321,6 +323,7 @@ impl Route {
             layout_name,
             metadata: HashMap::new(),
             param_constraints,
+            aliases: Vec::new(),
         }
     }
 
@@ -748,6 +751,108 @@ impl Route {
     pub fn has_meta(&self, key: &str) -> bool {
         self.metadata.contains_key(key)
     }
+
+    // ========================================================================
+    // Route Alias Builder Methods (Phase 3.1)
+    // ========================================================================
+    //
+    // Functional methods for managing route aliases:
+    // - Immutable transformations via builder pattern
+    // - Composable via method chaining
+    // - Support for legacy URLs, i18n, URL variations
+
+    /// Adds a single alias to this route
+    ///
+    /// Aliases allow multiple URL patterns to map to the same route handler.
+    /// Useful for legacy URL support, internationalization, and URL variations.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rhtmx_router::Route;
+    ///
+    /// let route = Route::from_path("pages/about.rhtml", "pages")
+    ///     .with_alias("/about-us")
+    ///     .with_alias("/company");
+    ///
+    /// assert_eq!(route.aliases, vec!["/about-us", "/company"]);
+    /// ```
+    pub fn with_alias(mut self, alias: impl Into<String>) -> Self {
+        self.aliases.push(alias.into());
+        self
+    }
+
+    /// Adds multiple aliases at once (functional batch operation)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rhtmx_router::Route;
+    ///
+    /// let route = Route::from_path("pages/about.rhtml", "pages")
+    ///     .with_aliases(["/about-us", "/company", "/über"]);
+    ///
+    /// assert_eq!(route.aliases.len(), 3);
+    /// ```
+    pub fn with_aliases<I, S>(mut self, aliases: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.aliases.extend(aliases.into_iter().map(|s| s.into()));
+        self
+    }
+
+    /// Checks if a path matches this route or any of its aliases (functional predicate)
+    ///
+    /// Uses functional iteration to check primary pattern and all aliases.
+    /// Returns true if any pattern matches (short-circuit evaluation).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rhtmx_router::Route;
+    ///
+    /// let route = Route::from_path("pages/about.rhtml", "pages")
+    ///     .with_aliases(["/about-us", "/company"]);
+    ///
+    /// assert!(route.matches_any("/about").is_some());
+    /// assert!(route.matches_any("/about-us").is_some());
+    /// assert!(route.matches_any("/company").is_some());
+    /// assert!(route.matches_any("/other").is_none());
+    /// ```
+    pub fn matches_any(&self, path: &str) -> Option<HashMap<String, String>> {
+        // First try the primary pattern
+        if let Some(params) = self.matches(path) {
+            return Some(params);
+        }
+
+        // Then try all aliases (functional iteration with short-circuit)
+        self.aliases
+            .iter()
+            .find_map(|alias_pattern| {
+                // For aliases, we need to parse them as if they were routes
+                // For now, static aliases only (no parameters in aliases)
+                if self.matches_static_alias(path, alias_pattern) {
+                    Some(HashMap::new())
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Helper to match static alias patterns (functional helper)
+    fn matches_static_alias(&self, path: &str, alias: &str) -> bool {
+        // Normalize both paths for comparison
+        let normalized_path = path.trim_end_matches('/');
+        let normalized_alias = alias.trim_end_matches('/');
+
+        if normalized_path.is_empty() && normalized_alias.is_empty() {
+            return true;
+        }
+
+        normalized_path == normalized_alias
+    }
 }
 
 // ============================================================================
@@ -1016,7 +1121,10 @@ impl Router {
 
     /// Matches a path against all routes and returns the first match
     ///
-    /// Routes are checked in priority order (static > optional > dynamic > catch-all)
+    /// Routes are checked in priority order (static > optional > dynamic > catch-all).
+    /// Also checks route aliases for matching (Phase 3.1).
+    ///
+    /// Uses functional iteration with short-circuit evaluation - stops at first match.
     ///
     /// # Examples
     ///
@@ -1030,15 +1138,28 @@ impl Router {
     /// assert_eq!(route_match.params.get("id"), Some(&"123".to_string()));
     /// ```
     pub fn match_route(&self, path: &str) -> Option<RouteMatch> {
-        for route in &self.routes {
+        // Functional iteration with short-circuit on first match
+        self.routes.iter().find_map(|route| {
+            // Try primary pattern first
             if let Some(params) = route.matches_with_options(path, self.case_insensitive) {
                 return Some(RouteMatch {
                     route: route.clone(),
                     params,
                 });
             }
-        }
-        None
+
+            // Then try aliases (functional iteration)
+            route.aliases.iter().find_map(|alias| {
+                if route.matches_static_alias(path, alias) {
+                    Some(RouteMatch {
+                        route: route.clone(),
+                        params: HashMap::new(),
+                    })
+                } else {
+                    None
+                }
+            })
+        })
     }
 
     /// Finds the appropriate layout for a given route pattern
@@ -2306,5 +2427,268 @@ mod tests {
             ParameterConstraint::from_str("unknown"),
             ParameterConstraint::Any
         );
+    }
+
+    // ========================================================================
+    // Route Alias Tests (Phase 3.1)
+    // ========================================================================
+
+    #[test]
+    fn test_route_with_single_alias() {
+        let route = Route::from_path("pages/about.rhtml", "pages")
+            .with_alias("/about-us");
+
+        assert_eq!(route.pattern, "/about");
+        assert_eq!(route.aliases, vec!["/about-us"]);
+    }
+
+    #[test]
+    fn test_route_with_multiple_aliases_chained() {
+        let route = Route::from_path("pages/about.rhtml", "pages")
+            .with_alias("/about-us")
+            .with_alias("/company")
+            .with_alias("/über");
+
+        assert_eq!(route.aliases.len(), 3);
+        assert_eq!(route.aliases, vec!["/about-us", "/company", "/über"]);
+    }
+
+    #[test]
+    fn test_route_with_aliases_batch() {
+        let route = Route::from_path("pages/contact.rhtml", "pages")
+            .with_aliases(["/contact-us", "/get-in-touch", "/reach-us"]);
+
+        assert_eq!(route.aliases.len(), 3);
+        assert!(route.aliases.contains(&"/contact-us".to_string()));
+        assert!(route.aliases.contains(&"/get-in-touch".to_string()));
+        assert!(route.aliases.contains(&"/reach-us".to_string()));
+    }
+
+    #[test]
+    fn test_route_matches_any_primary() {
+        let route = Route::from_path("pages/about.rhtml", "pages")
+            .with_aliases(["/about-us", "/company"]);
+
+        // Primary pattern should match
+        assert!(route.matches_any("/about").is_some());
+    }
+
+    #[test]
+    fn test_route_matches_any_alias() {
+        let route = Route::from_path("pages/about.rhtml", "pages")
+            .with_aliases(["/about-us", "/company"]);
+
+        // Aliases should match
+        assert!(route.matches_any("/about-us").is_some());
+        assert!(route.matches_any("/company").is_some());
+    }
+
+    #[test]
+    fn test_route_matches_any_no_match() {
+        let route = Route::from_path("pages/about.rhtml", "pages")
+            .with_aliases(["/about-us", "/company"]);
+
+        // Non-matching path
+        assert!(route.matches_any("/other").is_none());
+        assert!(route.matches_any("/contact").is_none());
+    }
+
+    #[test]
+    fn test_router_match_route_with_alias() {
+        let mut router = Router::new();
+
+        let route = Route::from_path("pages/about.rhtml", "pages")
+            .with_aliases(["/about-us", "/company"]);
+        router.add_route(route);
+
+        // Primary pattern
+        let m = router.match_route("/about");
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().route.pattern, "/about");
+
+        // First alias
+        let m = router.match_route("/about-us");
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().route.pattern, "/about");
+
+        // Second alias
+        let m = router.match_route("/company");
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().route.pattern, "/about");
+
+        // No match
+        let m = router.match_route("/other");
+        assert!(m.is_none());
+    }
+
+    #[test]
+    fn test_multiple_routes_with_aliases() {
+        let mut router = Router::new();
+
+        router.add_route(
+            Route::from_path("pages/about.rhtml", "pages")
+                .with_aliases(["/about-us", "/company"])
+        );
+
+        router.add_route(
+            Route::from_path("pages/contact.rhtml", "pages")
+                .with_aliases(["/contact-us", "/reach-us"])
+        );
+
+        // About route
+        assert!(router.match_route("/about").is_some());
+        assert!(router.match_route("/about-us").is_some());
+        assert!(router.match_route("/company").is_some());
+
+        // Contact route
+        assert!(router.match_route("/contact").is_some());
+        assert!(router.match_route("/contact-us").is_some());
+        assert!(router.match_route("/reach-us").is_some());
+
+        // Verify correct route is matched
+        let m = router.match_route("/about-us").unwrap();
+        assert_eq!(m.route.template_path, "pages/about.rhtml");
+
+        let m = router.match_route("/contact-us").unwrap();
+        assert_eq!(m.route.template_path, "pages/contact.rhtml");
+    }
+
+    #[test]
+    fn test_alias_with_trailing_slash() {
+        let route = Route::from_path("pages/about.rhtml", "pages")
+            .with_alias("/about-us");
+
+        // Should match with and without trailing slash
+        assert!(route.matches_any("/about-us").is_some());
+        assert!(route.matches_any("/about-us/").is_some());
+    }
+
+    #[test]
+    fn test_alias_internationalization() {
+        let route = Route::from_path("pages/about.rhtml", "pages")
+            .with_aliases(["/über", "/acerca", "/à-propos"]);
+
+        assert!(route.matches_any("/über").is_some());
+        assert!(route.matches_any("/acerca").is_some());
+        assert!(route.matches_any("/à-propos").is_some());
+    }
+
+    #[test]
+    fn test_alias_legacy_url_support() {
+        let route = Route::from_path("pages/products/index.rhtml", "pages")
+            .with_aliases(["/old-products", "/legacy/products", "/shop"]);
+
+        let mut router = Router::new();
+        router.add_route(route);
+
+        // New URL
+        assert!(router.match_route("/products").is_some());
+
+        // Legacy URLs
+        assert!(router.match_route("/old-products").is_some());
+        assert!(router.match_route("/legacy/products").is_some());
+        assert!(router.match_route("/shop").is_some());
+    }
+
+    #[test]
+    fn test_alias_with_metadata() {
+        let route = Route::from_path("pages/about.rhtml", "pages")
+            .with_meta("title", "About Us")
+            .with_aliases(["/about-us", "/company"])
+            .with_meta("description", "Learn about our company");
+
+        assert_eq!(route.aliases.len(), 2);
+        assert_eq!(route.get_meta("title"), Some(&"About Us".to_string()));
+        assert_eq!(
+            route.get_meta("description"),
+            Some(&"Learn about our company".to_string())
+        );
+    }
+
+    #[test]
+    fn test_alias_chaining_with_other_builders() {
+        let route = Route::from_path("pages/dashboard/print.rhtml", "pages")
+            .with_root_layout()
+            .with_alias("/print-dashboard")
+            .with_meta("title", "Print View")
+            .with_alias("/dashboard-print");
+
+        assert_eq!(route.layout_option, LayoutOption::Root);
+        assert_eq!(route.aliases.len(), 2);
+        assert_eq!(route.get_meta("title"), Some(&"Print View".to_string()));
+    }
+
+    #[test]
+    fn test_empty_aliases_default() {
+        let route = Route::from_path("pages/about.rhtml", "pages");
+        assert_eq!(route.aliases.len(), 0);
+        assert!(route.aliases.is_empty());
+    }
+
+    #[test]
+    fn test_alias_priority_order() {
+        let mut router = Router::new();
+
+        // Add static route with aliases
+        router.add_route(
+            Route::from_path("pages/products/new.rhtml", "pages")
+                .with_alias("/create-product")
+        );
+
+        // Add dynamic route
+        router.add_route(Route::from_path("pages/products/[id].rhtml", "pages"));
+
+        // Static route should match first
+        let m = router.match_route("/products/new").unwrap();
+        assert_eq!(m.route.template_path, "pages/products/new.rhtml");
+
+        // Alias should also match
+        let m = router.match_route("/create-product").unwrap();
+        assert_eq!(m.route.template_path, "pages/products/new.rhtml");
+
+        // Dynamic route should match other paths
+        let m = router.match_route("/products/123").unwrap();
+        assert_eq!(m.route.template_path, "pages/products/[id].rhtml");
+    }
+
+    #[test]
+    fn test_route_static_alias_matching() {
+        let route = Route::from_path("pages/about.rhtml", "pages");
+
+        // Test static alias matching helper
+        assert!(route.matches_static_alias("/about", "/about"));
+        assert!(route.matches_static_alias("/about/", "/about"));
+        assert!(route.matches_static_alias("/about", "/about/"));
+        assert!(!route.matches_static_alias("/about", "/other"));
+    }
+
+    #[test]
+    fn test_alias_case_sensitivity() {
+        let mut router = Router::new();
+
+        router.add_route(
+            Route::from_path("pages/about.rhtml", "pages")
+                .with_alias("/About-Us")
+        );
+
+        // Case-sensitive by default
+        assert!(router.match_route("/About-Us").is_some());
+        assert!(router.match_route("/about-us").is_none());
+    }
+
+    #[test]
+    fn test_functional_alias_composition() {
+        // Test functional builder pattern composition
+        let route = Route::from_path("pages/home.rhtml", "pages")
+            .with_aliases(vec!["/index", "/start"])  // Vec
+            .with_aliases(["/main", "/home"])        // Array
+            .with_alias("/landing");                 // Single
+
+        assert_eq!(route.aliases.len(), 5);
+        assert!(route.aliases.contains(&"/index".to_string()));
+        assert!(route.aliases.contains(&"/start".to_string()));
+        assert!(route.aliases.contains(&"/main".to_string()));
+        assert!(route.aliases.contains(&"/home".to_string()));
+        assert!(route.aliases.contains(&"/landing".to_string()));
     }
 }
