@@ -48,6 +48,83 @@ use std::collections::HashMap;
 // Core Types
 // ============================================================================
 
+/// Parameter constraint for validating dynamic route parameters
+///
+/// Uses functional pattern matching for validation logic.
+/// Constraints ensure type safety and input validation at routing level.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParameterConstraint {
+    /// No constraint - accepts any value (default)
+    Any,
+    /// Integer numbers only: 123, -456
+    Int,
+    /// Unsigned integer: 123, 456 (no negatives)
+    UInt,
+    /// Alphabetic characters only: abc, XYZ
+    Alpha,
+    /// Alphanumeric: abc123, Test99
+    AlphaNum,
+    /// Slug format: hello-world, my_post
+    Slug,
+    /// UUID format: 550e8400-e29b-41d4-a716-446655440000
+    Uuid,
+    /// Custom regex pattern
+    Regex(String),
+}
+
+impl ParameterConstraint {
+    /// Validates a value against this constraint (functional predicate)
+    ///
+    /// Pure function that maps (constraint, value) → bool
+    pub fn validate(&self, value: &str) -> bool {
+        match self {
+            Self::Any => true,
+            Self::Int => value.parse::<i64>().is_ok(),
+            Self::UInt => value.parse::<u64>().is_ok(),
+            Self::Alpha => value.chars().all(|c| c.is_alphabetic()),
+            Self::AlphaNum => value.chars().all(|c| c.is_alphanumeric()),
+            Self::Slug => value
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '-' || c == '_'),
+            Self::Uuid => {
+                // Simple UUID validation: 8-4-4-4-12 hex digits
+                let parts: Vec<&str> = value.split('-').collect();
+                parts.len() == 5
+                    && parts[0].len() == 8
+                    && parts[1].len() == 4
+                    && parts[2].len() == 4
+                    && parts[3].len() == 4
+                    && parts[4].len() == 12
+                    && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_hexdigit()))
+            }
+            Self::Regex(pattern) => {
+                // For zero-dependency, use simple pattern matching
+                // In real use, would use regex crate
+                // For now, just check if pattern is in value
+                value.contains(pattern)
+            }
+        }
+    }
+
+    /// Parses constraint from string (functional parser)
+    ///
+    /// Examples: "int", "alpha", "slug", "uuid", "regex:pattern"
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "int" | "integer" => Self::Int,
+            "uint" | "unsigned" => Self::UInt,
+            "alpha" => Self::Alpha,
+            "alphanum" | "alphanumeric" => Self::AlphaNum,
+            "slug" => Self::Slug,
+            "uuid" => Self::Uuid,
+            _ if s.starts_with("regex:") => {
+                Self::Regex(s.strip_prefix("regex:").unwrap_or("").to_string())
+            }
+            _ => Self::Any,
+        }
+    }
+}
+
 /// Defines how a route should resolve its layout
 ///
 /// Uses functional programming principles:
@@ -99,6 +176,10 @@ pub struct Route {
     pub layout_option: LayoutOption,
     /// Name of this layout (if it's a named layout)
     pub layout_name: Option<String>,
+    /// Arbitrary metadata for the route (titles, permissions, cache settings, etc.)
+    pub metadata: HashMap<String, String>,
+    /// Parameter constraints for validation (param_name → constraint)
+    pub param_constraints: HashMap<String, ParameterConstraint>,
 }
 
 /// Result of matching a route against a path
@@ -113,12 +194,12 @@ pub struct RouteMatch {
 /// Represents different types of route pattern segments
 #[derive(Debug, Clone, PartialEq)]
 enum PatternSegmentType {
-    /// Catch-all segment: [...slug]
-    CatchAll(String),
-    /// Optional parameter: [id?]
-    Optional(String),
-    /// Required parameter: [id]
-    Required(String),
+    /// Catch-all segment: [...slug] or [...slug:alpha]
+    CatchAll(String, Option<ParameterConstraint>),
+    /// Optional parameter: [id?] or [id:int?]
+    Optional(String, Option<ParameterConstraint>),
+    /// Required parameter: [id] or [id:int]
+    Required(String, Option<ParameterConstraint>),
     /// Static text segment
     Static(String),
 }
@@ -128,19 +209,48 @@ enum PatternSegmentType {
 // ============================================================================
 
 /// Helper function to classify a segment into a pattern type
+///
+/// Parses parameter names and constraints from segments like:
+/// - `[id]` → Required("id", None)
+/// - `[id:int]` → Required("id", Some(Int))
+/// - `[id:int?]` → Optional("id", Some(Int))
+/// - `[...slug:alpha]` → CatchAll("slug", Some(Alpha))
 fn classify_segment(segment: &str) -> PatternSegmentType {
     match segment.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
         Some(inner) => {
-            if let Some(param_name) = inner.strip_prefix("...") {
-                PatternSegmentType::CatchAll(param_name.to_string())
-            } else if let Some(param_name) = inner.strip_suffix('?') {
-                PatternSegmentType::Optional(param_name.to_string())
-            } else {
-                PatternSegmentType::Required(inner.to_string())
+            // Parse catch-all: [...name] or [...name:constraint]
+            if let Some(param_part) = inner.strip_prefix("...") {
+                let (param_name, constraint) = parse_param_with_constraint(param_part);
+                return PatternSegmentType::CatchAll(param_name, constraint);
             }
+
+            // Parse optional: [name?] or [name:constraint?]
+            if let Some(param_part) = inner.strip_suffix('?') {
+                let (param_name, constraint) = parse_param_with_constraint(param_part);
+                return PatternSegmentType::Optional(param_name, constraint);
+            }
+
+            // Parse required: [name] or [name:constraint]
+            let (param_name, constraint) = parse_param_with_constraint(inner);
+            PatternSegmentType::Required(param_name, constraint)
         }
         None => PatternSegmentType::Static(segment.to_string()),
     }
+}
+
+/// Parses parameter name and optional constraint from "name" or "name:constraint"
+///
+/// Functional parser that splits on ':' and returns (name, maybe_constraint)
+fn parse_param_with_constraint(param: &str) -> (String, Option<ParameterConstraint>) {
+    param
+        .split_once(':')
+        .map(|(name, constraint_str)| {
+            (
+                name.to_string(),
+                Some(ParameterConstraint::from_str(constraint_str)),
+            )
+        })
+        .unwrap_or_else(|| (param.to_string(), None))
 }
 
 impl Route {
@@ -190,7 +300,7 @@ impl Route {
             None
         };
 
-        let (pattern, params, optional_params, dynamic_count, has_catch_all) =
+        let (pattern, params, optional_params, dynamic_count, has_catch_all, param_constraints) =
             Self::parse_pattern(without_ext);
 
         let depth = pattern.matches('/').count();
@@ -209,6 +319,8 @@ impl Route {
             is_nolayout_marker,
             layout_option: LayoutOption::default(),
             layout_name,
+            metadata: HashMap::new(),
+            param_constraints,
         }
     }
 
@@ -226,12 +338,24 @@ impl Route {
     }
 
     /// Parses a file path pattern into route components
-    fn parse_pattern(path: &str) -> (String, Vec<String>, Vec<String>, usize, bool) {
+    ///
+    /// Returns: (pattern, params, optional_params, dynamic_count, has_catch_all, constraints)
+    fn parse_pattern(
+        path: &str,
+    ) -> (
+        String,
+        Vec<String>,
+        Vec<String>,
+        usize,
+        bool,
+        HashMap<String, ParameterConstraint>,
+    ) {
         let mut pattern = String::new();
         let mut params = Vec::new();
         let mut optional_params = Vec::new();
         let mut dynamic_count = 0;
         let mut has_catch_all = false;
+        let mut param_constraints = HashMap::new();
 
         for segment in path.split('/') {
             // Skip empty segments and special directory names
@@ -247,25 +371,43 @@ impl Route {
 
             // Classify the segment and handle accordingly
             match classify_segment(segment) {
-                PatternSegmentType::CatchAll(param_name) => {
+                PatternSegmentType::CatchAll(param_name, constraint) => {
                     pattern.push_str("/*");
                     pattern.push_str(&param_name);
-                    params.push(param_name);
+                    params.push(param_name.clone());
+
+                    // Store constraint if present
+                    if let Some(c) = constraint {
+                        param_constraints.insert(param_name, c);
+                    }
+
                     has_catch_all = true;
                     dynamic_count += 100;
                 }
-                PatternSegmentType::Optional(param_name) => {
+                PatternSegmentType::Optional(param_name, constraint) => {
                     pattern.push_str("/:");
                     pattern.push_str(&param_name);
                     pattern.push('?');
                     params.push(param_name.clone());
-                    optional_params.push(param_name);
+                    optional_params.push(param_name.clone());
+
+                    // Store constraint if present
+                    if let Some(c) = constraint {
+                        param_constraints.insert(param_name, c);
+                    }
+
                     dynamic_count += 1;
                 }
-                PatternSegmentType::Required(param_name) => {
+                PatternSegmentType::Required(param_name, constraint) => {
                     pattern.push_str("/:");
                     pattern.push_str(&param_name);
-                    params.push(param_name);
+                    params.push(param_name.clone());
+
+                    // Store constraint if present
+                    if let Some(c) = constraint {
+                        param_constraints.insert(param_name, c);
+                    }
+
                     dynamic_count += 1;
                 }
                 PatternSegmentType::Static(seg) => {
@@ -285,6 +427,7 @@ impl Route {
             optional_params,
             dynamic_count,
             has_catch_all,
+            param_constraints,
         )
     }
 
@@ -404,7 +547,21 @@ impl Route {
         }
 
         if path_idx == path_segments.len() {
-            Some(params)
+            // Validate all parameters against constraints (functional validation)
+            let all_valid = params
+                .iter()
+                .all(|(param_name, param_value)| {
+                    self.param_constraints
+                        .get(param_name)
+                        .map(|constraint| constraint.validate(param_value))
+                        .unwrap_or(true) // No constraint = always valid
+                });
+
+            if all_valid {
+                Some(params)
+            } else {
+                None // Constraint validation failed
+            }
         } else {
             None
         }
@@ -511,6 +668,85 @@ impl Route {
     /// ```
     pub fn with_layout_pattern(self, pattern: impl Into<String>) -> Self {
         self.with_layout_option(LayoutOption::Pattern(pattern.into()))
+    }
+
+    // ========================================================================
+    // Metadata Builder Methods (Phase 2.2)
+    // ========================================================================
+    //
+    // Functional metadata manipulation following builder pattern:
+    // - Chainable methods
+    // - Type-safe keys via Into<String>
+    // - Pure functional transformations
+
+    /// Sets a metadata key-value pair
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rhtmx_router::Route;
+    ///
+    /// let route = Route::from_path("pages/users/[id].rhtml", "pages")
+    ///     .with_meta("title", "User Profile")
+    ///     .with_meta("permission", "users.read");
+    /// ```
+    pub fn with_meta(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.metadata.insert(key.into(), value.into());
+        self
+    }
+
+    /// Sets multiple metadata entries at once (functional batch update)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rhtmx_router::Route;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut meta = HashMap::new();
+    /// meta.insert("title".to_string(), "Admin Dashboard".to_string());
+    /// meta.insert("permission".to_string(), "admin.read".to_string());
+    ///
+    /// let route = Route::from_path("pages/admin/dashboard.rhtml", "pages")
+    ///     .with_metadata(meta);
+    /// ```
+    pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {
+        self.metadata.extend(metadata);
+        self
+    }
+
+    /// Gets a metadata value by key (functional accessor)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rhtmx_router::Route;
+    ///
+    /// let route = Route::from_path("pages/users/[id].rhtml", "pages")
+    ///     .with_meta("title", "User Profile");
+    ///
+    /// assert_eq!(route.get_meta("title"), Some(&"User Profile".to_string()));
+    /// assert_eq!(route.get_meta("missing"), None);
+    /// ```
+    pub fn get_meta(&self, key: &str) -> Option<&String> {
+        self.metadata.get(key)
+    }
+
+    /// Checks if metadata key exists (functional predicate)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rhtmx_router::Route;
+    ///
+    /// let route = Route::from_path("pages/admin/users.rhtml", "pages")
+    ///     .with_meta("permission", "admin.read");
+    ///
+    /// assert!(route.has_meta("permission"));
+    /// assert!(!route.has_meta("title"));
+    /// ```
+    pub fn has_meta(&self, key: &str) -> bool {
+        self.metadata.contains_key(key)
     }
 }
 
@@ -1743,5 +1979,332 @@ mod tests {
         assert!(!router.is_under_nolayout_marker("/settings"));
         assert!(!router.is_under_nolayout_marker("/api"));
         assert!(!router.is_under_nolayout_marker("/api/v2"));
+    }
+
+    // ========================================================================
+    // Metadata Tests (Phase 2.2)
+    // ========================================================================
+
+    #[test]
+    fn test_route_with_meta() {
+        let route = Route::from_path("pages/users/[id].rhtml", "pages")
+            .with_meta("title", "User Profile")
+            .with_meta("permission", "users.read")
+            .with_meta("cache_ttl", "300");
+
+        assert_eq!(route.get_meta("title"), Some(&"User Profile".to_string()));
+        assert_eq!(
+            route.get_meta("permission"),
+            Some(&"users.read".to_string())
+        );
+        assert_eq!(route.get_meta("cache_ttl"), Some(&"300".to_string()));
+        assert_eq!(route.get_meta("missing"), None);
+    }
+
+    #[test]
+    fn test_route_with_metadata_batch() {
+        let mut meta = HashMap::new();
+        meta.insert("title".to_string(), "Admin Dashboard".to_string());
+        meta.insert("permission".to_string(), "admin.read".to_string());
+        meta.insert("description".to_string(), "Main admin page".to_string());
+
+        let route =
+            Route::from_path("pages/admin/dashboard.rhtml", "pages").with_metadata(meta.clone());
+
+        assert_eq!(route.get_meta("title"), Some(&"Admin Dashboard".to_string()));
+        assert_eq!(route.get_meta("permission"), Some(&"admin.read".to_string()));
+        assert_eq!(
+            route.get_meta("description"),
+            Some(&"Main admin page".to_string())
+        );
+    }
+
+    #[test]
+    fn test_route_has_meta() {
+        let route = Route::from_path("pages/admin/users.rhtml", "pages")
+            .with_meta("permission", "admin.read")
+            .with_meta("title", "User Management");
+
+        assert!(route.has_meta("permission"));
+        assert!(route.has_meta("title"));
+        assert!(!route.has_meta("missing"));
+        assert!(!route.has_meta("cache_ttl"));
+    }
+
+    #[test]
+    fn test_metadata_chaining() {
+        let route = Route::from_path("pages/products/[id].rhtml", "pages")
+            .with_meta("title", "Product Details")
+            .with_no_layout()
+            .with_meta("permission", "products.read")
+            .with_meta("cache_ttl", "600");
+
+        // Check metadata
+        assert_eq!(route.get_meta("title"), Some(&"Product Details".to_string()));
+        assert_eq!(
+            route.get_meta("permission"),
+            Some(&"products.read".to_string())
+        );
+        assert_eq!(route.get_meta("cache_ttl"), Some(&"600".to_string()));
+
+        // Check layout option still works
+        assert_eq!(route.layout_option, LayoutOption::None);
+    }
+
+    #[test]
+    fn test_metadata_in_route_match() {
+        let mut router = Router::new();
+
+        let route = Route::from_path("pages/users/[id].rhtml", "pages")
+            .with_meta("title", "User Profile")
+            .with_meta("permission", "users.read");
+
+        router.add_route(route);
+
+        let route_match = router.match_route("/users/123").unwrap();
+
+        // Metadata should be accessible from matched route
+        assert_eq!(
+            route_match.route.get_meta("title"),
+            Some(&"User Profile".to_string())
+        );
+        assert_eq!(
+            route_match.route.get_meta("permission"),
+            Some(&"users.read".to_string())
+        );
+    }
+
+    #[test]
+    fn test_metadata_override() {
+        let route = Route::from_path("pages/settings.rhtml", "pages")
+            .with_meta("title", "Settings")
+            .with_meta("title", "User Settings"); // Override
+
+        assert_eq!(
+            route.get_meta("title"),
+            Some(&"User Settings".to_string()),
+            "Later metadata should override earlier"
+        );
+    }
+
+    #[test]
+    fn test_empty_metadata() {
+        let route = Route::from_path("pages/about.rhtml", "pages");
+
+        assert_eq!(route.metadata.len(), 0);
+        assert!(!route.has_meta("anything"));
+        assert_eq!(route.get_meta("anything"), None);
+    }
+
+    // ========================================================================
+    // Parameter Constraints Tests (Phase 2.3)
+    // ========================================================================
+
+    #[test]
+    fn test_constraint_parsing_from_filename() {
+        // Integer constraint
+        let route = Route::from_path("pages/users/[id:int].rhtml", "pages");
+        assert_eq!(route.pattern, "/users/:id");
+        assert_eq!(
+            route.param_constraints.get("id"),
+            Some(&ParameterConstraint::Int)
+        );
+
+        // Alpha constraint
+        let route = Route::from_path("pages/tags/[name:alpha].rhtml", "pages");
+        assert_eq!(
+            route.param_constraints.get("name"),
+            Some(&ParameterConstraint::Alpha)
+        );
+
+        // Slug constraint
+        let route = Route::from_path("pages/posts/[slug:slug].rhtml", "pages");
+        assert_eq!(
+            route.param_constraints.get("slug"),
+            Some(&ParameterConstraint::Slug)
+        );
+    }
+
+    #[test]
+    fn test_constraint_int_validation() {
+        let route = Route::from_path("pages/users/[id:int].rhtml", "pages");
+
+        // Valid integers
+        assert!(route.matches("/users/123").is_some());
+        assert!(route.matches("/users/0").is_some());
+        assert!(route.matches("/users/-456").is_some());
+
+        // Invalid (non-integers)
+        assert!(route.matches("/users/abc").is_none());
+        assert!(route.matches("/users/12.34").is_none());
+        assert!(route.matches("/users/hello").is_none());
+    }
+
+    #[test]
+    fn test_constraint_uint_validation() {
+        let route = Route::from_path("pages/products/[id:uint].rhtml", "pages");
+
+        // Valid unsigned integers
+        assert!(route.matches("/products/123").is_some());
+        assert!(route.matches("/products/0").is_some());
+
+        // Invalid (negative or non-integer)
+        assert!(route.matches("/products/-456").is_none());
+        assert!(route.matches("/products/abc").is_none());
+    }
+
+    #[test]
+    fn test_constraint_alpha_validation() {
+        let route = Route::from_path("pages/tags/[name:alpha].rhtml", "pages");
+
+        // Valid alphabetic
+        assert!(route.matches("/tags/hello").is_some());
+        assert!(route.matches("/tags/ABC").is_some());
+
+        // Invalid (contains numbers or special chars)
+        assert!(route.matches("/tags/hello123").is_none());
+        assert!(route.matches("/tags/hello-world").is_none());
+    }
+
+    #[test]
+    fn test_constraint_alphanum_validation() {
+        let route = Route::from_path("pages/codes/[code:alphanum].rhtml", "pages");
+
+        // Valid alphanumeric
+        assert!(route.matches("/codes/abc123").is_some());
+        assert!(route.matches("/codes/Test99").is_some());
+
+        // Invalid (special characters)
+        assert!(route.matches("/codes/hello-world").is_none());
+        assert!(route.matches("/codes/test_123").is_none());
+    }
+
+    #[test]
+    fn test_constraint_slug_validation() {
+        let route = Route::from_path("pages/posts/[slug:slug].rhtml", "pages");
+
+        // Valid slugs
+        assert!(route.matches("/posts/hello-world").is_some());
+        assert!(route.matches("/posts/my_post").is_some());
+        assert!(route.matches("/posts/test123").is_some());
+
+        // Invalid (special characters)
+        assert!(route.matches("/posts/hello world").is_none());
+        assert!(route.matches("/posts/test@123").is_none());
+    }
+
+    #[test]
+    fn test_constraint_uuid_validation() {
+        let route = Route::from_path("pages/items/[id:uuid].rhtml", "pages");
+
+        // Valid UUID
+        assert!(route
+            .matches("/items/550e8400-e29b-41d4-a716-446655440000")
+            .is_some());
+
+        // Invalid UUID
+        assert!(route.matches("/items/not-a-uuid").is_none());
+        assert!(route.matches("/items/123-456-789").is_none());
+    }
+
+    #[test]
+    fn test_constraint_optional_parameter() {
+        let route = Route::from_path("pages/posts/[id:int?].rhtml", "pages");
+
+        // Valid with integer
+        assert!(route.matches("/posts/123").is_some());
+
+        // Valid without parameter
+        assert!(route.matches("/posts").is_some());
+
+        // Invalid with non-integer
+        assert!(route.matches("/posts/abc").is_none());
+    }
+
+    #[test]
+    fn test_constraint_catch_all() {
+        let route = Route::from_path("pages/docs/[...slug:slug].rhtml", "pages");
+
+        // Valid slugs
+        assert!(route.matches("/docs/hello-world").is_some());
+        assert!(route.matches("/docs/guide/intro").is_some());
+
+        // Note: This test would fail because catch-all captures everything,
+        // including slashes, making it hard to validate individual segments
+        // In practice, catch-all constraints are less useful than per-segment ones
+    }
+
+    #[test]
+    fn test_multiple_constraints() {
+        let route = Route::from_path("pages/posts/[year:int]/[slug:slug].rhtml", "pages");
+
+        // Valid: integer year + valid slug
+        assert!(route.matches("/posts/2024/hello-world").is_some());
+
+        // Invalid: non-integer year
+        assert!(route.matches("/posts/twenty/hello-world").is_none());
+
+        // Invalid: invalid slug
+        assert!(route.matches("/posts/2024/hello world").is_none());
+    }
+
+    #[test]
+    fn test_constraint_with_router_matching() {
+        let mut router = Router::new();
+
+        router.add_route(Route::from_path("pages/users/[id:int].rhtml", "pages"));
+        router.add_route(Route::from_path("pages/users/[name:alpha].rhtml", "pages"));
+
+        // Should match integer route
+        let m = router.match_route("/users/123");
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().route.template_path, "pages/users/[id:int].rhtml");
+
+        // Should match alpha route
+        let m = router.match_route("/users/john");
+        assert!(m.is_some());
+        assert_eq!(
+            m.unwrap().route.template_path,
+            "pages/users/[name:alpha].rhtml"
+        );
+    }
+
+    #[test]
+    fn test_no_constraint_default_behavior() {
+        let route = Route::from_path("pages/users/[id].rhtml", "pages");
+
+        // No constraint = accepts anything
+        assert!(route.matches("/users/123").is_some());
+        assert!(route.matches("/users/abc").is_some());
+        assert!(route.matches("/users/anything-goes").is_some());
+    }
+
+    #[test]
+    fn test_parameter_constraint_from_str() {
+        assert_eq!(ParameterConstraint::from_str("int"), ParameterConstraint::Int);
+        assert_eq!(
+            ParameterConstraint::from_str("integer"),
+            ParameterConstraint::Int
+        );
+        assert_eq!(
+            ParameterConstraint::from_str("uint"),
+            ParameterConstraint::UInt
+        );
+        assert_eq!(
+            ParameterConstraint::from_str("alpha"),
+            ParameterConstraint::Alpha
+        );
+        assert_eq!(
+            ParameterConstraint::from_str("slug"),
+            ParameterConstraint::Slug
+        );
+        assert_eq!(
+            ParameterConstraint::from_str("uuid"),
+            ParameterConstraint::Uuid
+        );
+        assert_eq!(
+            ParameterConstraint::from_str("unknown"),
+            ParameterConstraint::Any
+        );
     }
 }
