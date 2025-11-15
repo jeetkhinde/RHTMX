@@ -151,6 +151,19 @@ impl Default for LayoutOption {
     }
 }
 
+/// Level of route interception for intercepting routes (Phase 5.2)
+#[derive(Debug, Clone, PartialEq)]
+pub enum InterceptLevel {
+    /// (.) - Intercept segments at the same level
+    SameLevel,
+    /// (..) - Intercept segments one level up
+    OneLevelUp,
+    /// (...) - Intercept segments from the root
+    FromRoot,
+    /// (....) - Intercept segments two levels up
+    TwoLevelsUp,
+}
+
 /// Represents a single route with its pattern, parameters, and metadata
 #[derive(Debug, Clone)]
 pub struct Route {
@@ -178,6 +191,16 @@ pub struct Route {
     pub is_template: bool,
     /// Whether this is a not-found page (Phase 4.5)
     pub is_not_found: bool,
+    /// Whether this is a parallel route (Phase 5.1)
+    pub is_parallel_route: bool,
+    /// Slot name for parallel routes, e.g., "analytics" from @analytics (Phase 5.1)
+    pub parallel_slot: Option<String>,
+    /// Whether this is an intercepting route (Phase 5.2)
+    pub is_intercepting: bool,
+    /// Interception level for intercepting routes (Phase 5.2)
+    pub intercept_level: Option<InterceptLevel>,
+    /// Original pattern before interception (Phase 5.2)
+    pub intercept_target: Option<String>,
     /// Layout resolution strategy
     pub layout_option: LayoutOption,
     /// Name of this layout (if it's a named layout)
@@ -382,6 +405,13 @@ impl Route {
         let is_template = filename == "_template"; // Phase 4.4
         let is_not_found = filename == "not-found"; // Phase 4.5
 
+        // Phase 5.1: Detect parallel routes (@slot_name)
+        let (is_parallel_route, parallel_slot) = Self::detect_parallel_route(without_ext);
+
+        // Phase 5.2: Detect intercepting routes ((.), (..), (...), (....))
+        let (is_intercepting, intercept_level, intercept_target) =
+            Self::detect_intercepting_route(without_ext);
+
         // Detect named layouts: _layout.name.rhtml
         let layout_name = if is_layout {
             Self::extract_layout_name(filename)
@@ -409,6 +439,11 @@ impl Route {
             is_loading,
             is_template,
             is_not_found,
+            is_parallel_route,
+            parallel_slot,
+            is_intercepting,
+            intercept_level,
+            intercept_target,
             layout_option: LayoutOption::default(),
             layout_name,
             metadata: HashMap::new(),
@@ -432,6 +467,56 @@ impl Route {
         filename
             .strip_prefix("_layout.")
             .map(|name| name.to_string())
+    }
+
+    /// Detects parallel route slot from path (Phase 5.1)
+    ///
+    /// # Examples
+    /// - `dashboard/@analytics/page` → (true, Some("analytics"))
+    /// - `dashboard/users` → (false, None)
+    /// - `@team/settings/@nested` → (true, Some("team"))  (first @ slot)
+    fn detect_parallel_route(path: &str) -> (bool, Option<String>) {
+        // Find first segment starting with @
+        path.split('/')
+            .find(|seg| seg.starts_with('@') && seg.len() > 1)
+            .map(|seg| {
+                let slot_name = seg[1..].to_string();
+                (true, Some(slot_name))
+            })
+            .unwrap_or((false, None))
+    }
+
+    /// Detects intercepting route level from path (Phase 5.2)
+    ///
+    /// # Examples
+    /// - `feed/(.)photo` → (true, Some(SameLevel), Some("photo"))
+    /// - `feed/(..)photo/[id]` → (true, Some(OneLevelUp), Some("photo/[id]"))
+    /// - `(...)photo/[id]` → (true, Some(FromRoot), Some("photo/[id]"))
+    /// - `normal/path` → (false, None, None)
+    fn detect_intercepting_route(path: &str) -> (bool, Option<InterceptLevel>, Option<String>) {
+        let segments: Vec<&str> = path.split('/').collect();
+
+        for (idx, seg) in segments.iter().enumerate() {
+            let level = match *seg {
+                "(.)" => Some(InterceptLevel::SameLevel),
+                "(..)" => Some(InterceptLevel::OneLevelUp),
+                "(...)" => Some(InterceptLevel::FromRoot),
+                "(....)" => Some(InterceptLevel::TwoLevelsUp),
+                _ => None,
+            };
+
+            if let Some(intercept_level) = level {
+                // Capture the remaining path after the intercept marker
+                let target = if idx + 1 < segments.len() {
+                    Some(segments[idx + 1..].join("/"))
+                } else {
+                    None
+                };
+                return (true, Some(intercept_level), target);
+            }
+        }
+
+        (false, None, None)
     }
 
     /// Parses a file path pattern into route components
@@ -469,9 +554,23 @@ impl Route {
                 continue;
             }
 
+            // Phase 5.2: Skip intercepting route markers ((.), (..), (...), (....))
+            // These modify matching behavior but aren't part of the pattern
+            // Check this BEFORE route groups because they also use parentheses
+            if matches!(segment, "(.)" | "(..)" | "(...)" | "(....)") {
+                continue;
+            }
+
             // Skip route groups: (folder) - Phase 4.2
             // These organize code but don't affect URL structure
+            // Must check AFTER intercepting routes to avoid false positives
             if segment.starts_with('(') && segment.ends_with(')') {
+                continue;
+            }
+
+            // Phase 5.1: Skip parallel route slots (@slot_name)
+            // These are rendered in parallel, not part of URL
+            if segment.starts_with('@') {
                 continue;
             }
 
@@ -1218,6 +1317,11 @@ impl Route {
             is_loading: false,
             is_template: false,
             is_not_found: false,
+            is_parallel_route: false,
+            parallel_slot: None,
+            is_intercepting: false,
+            intercept_level: None,
+            intercept_target: None,
             layout_option: LayoutOption::None,
             layout_name: None,
             metadata: HashMap::new(),
@@ -1396,6 +1500,8 @@ impl<'a> Iterator for PathHierarchy<'a> {
 /// - Loading UI routes for loading states (HashMap for O(1) lookup) - Phase 4.3
 /// - Template routes for re-mounting layouts (HashMap for O(1) lookup) - Phase 4.4
 /// - Not-found routes for 404 pages (HashMap for O(1) lookup) - Phase 4.5
+/// - Parallel routes for simultaneous rendering (nested HashMap: pattern -> slot -> Route) - Phase 5.1
+/// - Intercepting routes for modal/overlay patterns (HashMap for O(1) lookup) - Phase 5.2
 /// - No-layout markers for directories that should render without layouts
 #[derive(Clone)]
 pub struct Router {
@@ -1407,6 +1513,8 @@ pub struct Router {
     loading_pages: HashMap<String, Route>,
     templates: HashMap<String, Route>,
     not_found_pages: HashMap<String, Route>,
+    parallel_routes: HashMap<String, HashMap<String, Route>>,
+    intercepting_routes: HashMap<String, Route>,
     nolayout_patterns: std::collections::HashSet<String>,
     case_insensitive: bool,
 }
@@ -1423,6 +1531,8 @@ impl Router {
             loading_pages: HashMap::new(),
             templates: HashMap::new(),
             not_found_pages: HashMap::new(),
+            parallel_routes: HashMap::new(),
+            intercepting_routes: HashMap::new(),
             nolayout_patterns: std::collections::HashSet::new(),
             case_insensitive: false,
         }
@@ -1447,6 +1557,8 @@ impl Router {
             loading_pages: HashMap::new(),
             templates: HashMap::new(),
             not_found_pages: HashMap::new(),
+            parallel_routes: HashMap::new(),
+            intercepting_routes: HashMap::new(),
             nolayout_patterns: std::collections::HashSet::new(),
             case_insensitive,
         }
@@ -1510,6 +1622,18 @@ impl Router {
         } else if route.is_not_found {
             // Phase 4.5: Not-found pages
             self.not_found_pages.insert(route.pattern.clone(), route);
+        } else if route.is_parallel_route {
+            // Phase 5.1: Parallel routes
+            // Store by pattern -> slot -> route
+            if let Some(ref slot) = route.parallel_slot {
+                self.parallel_routes
+                    .entry(route.pattern.clone())
+                    .or_insert_with(HashMap::new)
+                    .insert(slot.clone(), route);
+            }
+        } else if route.is_intercepting {
+            // Phase 5.2: Intercepting routes
+            self.intercepting_routes.insert(route.pattern.clone(), route);
         } else {
             // Regular route
             self.routes.push(route);
@@ -1520,7 +1644,7 @@ impl Router {
     /// Removes a route by its pattern
     ///
     /// Removes the route from all collections (routes, layouts, named_layouts, named_routes,
-    /// error_pages, loading_pages, templates, not_found_pages)
+    /// error_pages, loading_pages, templates, not_found_pages, parallel_routes, intercepting_routes)
     pub fn remove_route(&mut self, pattern: &str) {
         // Remove from routes and also from named_routes if it has a name
         if let Some(pos) = self.routes.iter().position(|r| r.pattern == pattern) {
@@ -1542,6 +1666,8 @@ impl Router {
         self.loading_pages.remove(pattern);
         self.templates.remove(pattern);
         self.not_found_pages.remove(pattern);
+        self.parallel_routes.remove(pattern);
+        self.intercepting_routes.remove(pattern);
     }
 
     /// Manually sorts routes by priority
@@ -1882,6 +2008,78 @@ impl Router {
     /// Returns all registered not-found routes
     pub fn not_found_pages(&self) -> &HashMap<String, Route> {
         &self.not_found_pages
+    }
+
+    // ========================================================================
+    // Parallel Routes and Intercepting Routes Accessors (Phase 5.1-5.2)
+    // ========================================================================
+
+    /// Gets all parallel routes for a given pattern (Phase 5.1)
+    ///
+    /// Returns a HashMap of slot names to routes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rhtmx_router::{Router, Route};
+    ///
+    /// let mut router = Router::new();
+    /// router.add_route(Route::from_path("pages/dashboard/@analytics/page.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/dashboard/@team/page.rhtml", "pages"));
+    ///
+    /// let slots = router.get_parallel_routes("/dashboard").unwrap();
+    /// assert_eq!(slots.len(), 2);
+    /// assert!(slots.contains_key("analytics"));
+    /// assert!(slots.contains_key("team"));
+    /// ```
+    pub fn get_parallel_routes(&self, pattern: &str) -> Option<&HashMap<String, Route>> {
+        self.parallel_routes.get(pattern)
+    }
+
+    /// Returns all registered parallel routes (pattern -> slot -> route)
+    pub fn parallel_routes(&self) -> &HashMap<String, HashMap<String, Route>> {
+        &self.parallel_routes
+    }
+
+    /// Gets a specific parallel route by pattern and slot name (Phase 5.1)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rhtmx_router::{Router, Route};
+    ///
+    /// let mut router = Router::new();
+    /// router.add_route(Route::from_path("pages/dashboard/@analytics/page.rhtml", "pages"));
+    ///
+    /// let route = router.get_parallel_route("/dashboard", "analytics").unwrap();
+    /// assert_eq!(route.parallel_slot, Some("analytics".to_string()));
+    /// ```
+    pub fn get_parallel_route(&self, pattern: &str, slot: &str) -> Option<&Route> {
+        self.parallel_routes
+            .get(pattern)
+            .and_then(|slots| slots.get(slot))
+    }
+
+    /// Gets an intercepting route for a given pattern (Phase 5.2)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rhtmx_router::{Router, Route};
+    ///
+    /// let mut router = Router::new();
+    /// router.add_route(Route::from_path("pages/feed/(.)photo/[id].rhtml", "pages"));
+    ///
+    /// let route = router.get_intercepting_route("/feed/photo/:id");
+    /// // Intercepts /photo/[id] when navigating from /feed
+    /// ```
+    pub fn get_intercepting_route(&self, pattern: &str) -> Option<&Route> {
+        self.intercepting_routes.get(pattern)
+    }
+
+    /// Returns all registered intercepting routes
+    pub fn intercepting_routes(&self) -> &HashMap<String, Route> {
+        &self.intercepting_routes
     }
 
     // ========================================================================
@@ -4610,5 +4808,320 @@ mod tests {
         // But template_path should preserve the group
         let loading = router.loading_pages().get("/").unwrap();
         assert_eq!(loading.template_path, "pages/(app)/loading.rhtml");
+    }
+
+    // ===== Phase 5.1: Parallel Routes Tests =====
+
+    #[test]
+    fn test_parallel_route_detection() {
+        let route = Route::from_path("pages/dashboard/@analytics/page.rhtml", "pages");
+
+        assert!(route.is_parallel_route);
+        assert_eq!(route.parallel_slot, Some("analytics".to_string()));
+        // @analytics is skipped from pattern
+        assert_eq!(route.pattern, "/dashboard/page");
+        assert_eq!(route.template_path, "pages/dashboard/@analytics/page.rhtml");
+    }
+
+    #[test]
+    fn test_parallel_route_multiple_slots() {
+        let mut router = Router::new();
+
+        // Multiple parallel slots for same pattern
+        router.add_route(Route::from_path("pages/dashboard/@analytics/page.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/dashboard/@team/page.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/dashboard/@settings/page.rhtml", "pages"));
+
+        let slots = router.get_parallel_routes("/dashboard/page").unwrap();
+        assert_eq!(slots.len(), 3);
+        assert!(slots.contains_key("analytics"));
+        assert!(slots.contains_key("team"));
+        assert!(slots.contains_key("settings"));
+    }
+
+    #[test]
+    fn test_parallel_route_specific_slot() {
+        let mut router = Router::new();
+
+        router.add_route(Route::from_path("pages/dashboard/@analytics/page.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/dashboard/@team/page.rhtml", "pages"));
+
+        let analytics = router.get_parallel_route("/dashboard/page", "analytics").unwrap();
+        assert_eq!(analytics.parallel_slot, Some("analytics".to_string()));
+        assert_eq!(analytics.template_path, "pages/dashboard/@analytics/page.rhtml");
+
+        let team = router.get_parallel_route("/dashboard/page", "team").unwrap();
+        assert_eq!(team.parallel_slot, Some("team".to_string()));
+        assert_eq!(team.template_path, "pages/dashboard/@team/page.rhtml");
+    }
+
+    #[test]
+    fn test_parallel_route_with_dynamic_params() {
+        let route = Route::from_path("pages/products/@reviews/[id].rhtml", "pages");
+
+        assert!(route.is_parallel_route);
+        assert_eq!(route.parallel_slot, Some("reviews".to_string()));
+        assert_eq!(route.pattern, "/products/:id");
+        assert_eq!(route.params, vec!["id"]);
+    }
+
+    #[test]
+    fn test_parallel_route_with_route_groups() {
+        let route = Route::from_path("pages/(shop)/products/@sidebar/list.rhtml", "pages");
+
+        // Both (shop) and @sidebar are skipped
+        assert!(route.is_parallel_route);
+        assert_eq!(route.parallel_slot, Some("sidebar".to_string()));
+        assert_eq!(route.pattern, "/products/list");
+        assert_eq!(route.template_path, "pages/(shop)/products/@sidebar/list.rhtml");
+    }
+
+    #[test]
+    fn test_parallel_route_nested() {
+        let route = Route::from_path("pages/app/@modal/profile/@details/page.rhtml", "pages");
+
+        // Only first @ is detected
+        assert!(route.is_parallel_route);
+        assert_eq!(route.parallel_slot, Some("modal".to_string()));
+        // Both @modal and @details are skipped from pattern
+        assert_eq!(route.pattern, "/app/profile/page");
+    }
+
+    #[test]
+    fn test_parallel_route_collection_accessor() {
+        let mut router = Router::new();
+
+        router.add_route(Route::from_path("pages/dash/@a/page.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/dash/@b/page.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/other/@c/page.rhtml", "pages"));
+
+        assert_eq!(router.parallel_routes().len(), 2);
+        assert!(router.parallel_routes().contains_key("/dash/page"));
+        assert!(router.parallel_routes().contains_key("/other/page"));
+    }
+
+    #[test]
+    fn test_parallel_route_with_index() {
+        let route = Route::from_path("pages/dashboard/@analytics/index.rhtml", "pages");
+
+        assert!(route.is_parallel_route);
+        assert_eq!(route.parallel_slot, Some("analytics".to_string()));
+        // index is skipped, @analytics is skipped
+        assert_eq!(route.pattern, "/dashboard");
+    }
+
+    #[test]
+    fn test_parallel_route_real_world_dashboard() {
+        let mut router = Router::new();
+
+        // Dashboard with multiple parallel sections
+        router.add_route(Route::from_path("pages/dashboard/index.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/dashboard/@analytics/index.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/dashboard/@team/index.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/dashboard/@notifications/index.rhtml", "pages"));
+
+        // Main page is a regular route
+        assert!(router.match_route("/dashboard").is_some());
+
+        // Parallel slots are available
+        let slots = router.get_parallel_routes("/dashboard").unwrap();
+        assert_eq!(slots.len(), 3);
+        assert!(slots.contains_key("analytics"));
+        assert!(slots.contains_key("team"));
+        assert!(slots.contains_key("notifications"));
+    }
+
+    // ===== Phase 5.2: Intercepting Routes Tests =====
+
+    #[test]
+    fn test_intercepting_route_same_level() {
+        let route = Route::from_path("pages/feed/(.)/photo/[id].rhtml", "pages");
+
+        assert!(route.is_intercepting);
+        assert_eq!(route.intercept_level, Some(InterceptLevel::SameLevel));
+        assert_eq!(route.intercept_target, Some("photo/[id]".to_string()));
+        // (.) is skipped from pattern
+        assert_eq!(route.pattern, "/feed/photo/:id");
+    }
+
+    #[test]
+    fn test_intercepting_route_one_level_up() {
+        let route = Route::from_path("pages/feed/(..)/photo/[id].rhtml", "pages");
+
+        assert!(route.is_intercepting);
+        assert_eq!(route.intercept_level, Some(InterceptLevel::OneLevelUp));
+        assert_eq!(route.intercept_target, Some("photo/[id]".to_string()));
+        assert_eq!(route.pattern, "/feed/photo/:id");
+    }
+
+    #[test]
+    fn test_intercepting_route_from_root() {
+        let route = Route::from_path("pages/feed/(...)/photo/[id].rhtml", "pages");
+
+        assert!(route.is_intercepting);
+        assert_eq!(route.intercept_level, Some(InterceptLevel::FromRoot));
+        assert_eq!(route.intercept_target, Some("photo/[id]".to_string()));
+        assert_eq!(route.pattern, "/feed/photo/:id");
+    }
+
+    #[test]
+    fn test_intercepting_route_two_levels_up() {
+        let route = Route::from_path("pages/feed/(....)/photo/[id].rhtml", "pages");
+
+        assert!(route.is_intercepting);
+        assert_eq!(route.intercept_level, Some(InterceptLevel::TwoLevelsUp));
+        assert_eq!(route.intercept_target, Some("photo/[id]".to_string()));
+        assert_eq!(route.pattern, "/feed/photo/:id");
+    }
+
+    #[test]
+    fn test_intercepting_route_in_router() {
+        let mut router = Router::new();
+
+        router.add_route(Route::from_path("pages/feed/(.)/photo/[id].rhtml", "pages"));
+
+        let route = router.get_intercepting_route("/feed/photo/:id").unwrap();
+        assert!(route.is_intercepting);
+        assert_eq!(route.intercept_level, Some(InterceptLevel::SameLevel));
+    }
+
+    #[test]
+    fn test_intercepting_route_with_route_groups() {
+        let route = Route::from_path("pages/(app)/feed/(.)/photo/[id].rhtml", "pages");
+
+        // Both (app) and (.) are skipped
+        assert!(route.is_intercepting);
+        assert_eq!(route.intercept_level, Some(InterceptLevel::SameLevel));
+        assert_eq!(route.pattern, "/feed/photo/:id");
+    }
+
+    #[test]
+    fn test_intercepting_route_modal_pattern() {
+        let mut router = Router::new();
+
+        // Regular photo page
+        router.add_route(Route::from_path("pages/photo/[id].rhtml", "pages"));
+
+        // Intercepting route when coming from feed
+        router.add_route(Route::from_path("pages/feed/(.)/photo/[id].rhtml", "pages"));
+
+        // Regular route exists
+        assert!(router.match_route("/photo/123").is_some());
+
+        // Intercepting route also exists
+        let intercept = router.get_intercepting_route("/feed/photo/:id").unwrap();
+        assert_eq!(intercept.intercept_target, Some("photo/[id]".to_string()));
+    }
+
+    #[test]
+    fn test_intercepting_route_collection_accessor() {
+        let mut router = Router::new();
+
+        router.add_route(Route::from_path("pages/feed/(.)/photo/[id].rhtml", "pages"));
+        router.add_route(Route::from_path("pages/gallery/(..)/image/[id].rhtml", "pages"));
+
+        assert_eq!(router.intercepting_routes().len(), 2);
+        assert!(router.intercepting_routes().contains_key("/feed/photo/:id"));
+        assert!(router.intercepting_routes().contains_key("/gallery/image/:id"));
+    }
+
+    #[test]
+    fn test_intercepting_route_with_catch_all() {
+        let route = Route::from_path("pages/app/(...)/docs/[...slug].rhtml", "pages");
+
+        assert!(route.is_intercepting);
+        assert_eq!(route.intercept_level, Some(InterceptLevel::FromRoot));
+        assert_eq!(route.intercept_target, Some("docs/[...slug]".to_string()));
+        assert_eq!(route.pattern, "/app/docs/*slug");
+        assert!(route.has_catch_all);
+    }
+
+    #[test]
+    fn test_intercepting_route_real_world_modal() {
+        let mut router = Router::new();
+
+        // Feed page
+        router.add_route(Route::from_path("pages/feed/index.rhtml", "pages"));
+
+        // Photo detail page (standalone)
+        router.add_route(Route::from_path("pages/photo/[id].rhtml", "pages"));
+
+        // Intercepting route - show photo as modal when navigating from feed
+        router.add_route(Route::from_path("pages/feed/(...)/photo/[id].rhtml", "pages"));
+
+        // All routes are accessible
+        assert!(router.match_route("/feed").is_some());
+        assert!(router.match_route("/photo/123").is_some());
+
+        // Intercepting route is registered
+        let intercept = router.get_intercepting_route("/feed/photo/:id").unwrap();
+        assert_eq!(intercept.intercept_level, Some(InterceptLevel::FromRoot));
+        assert_eq!(intercept.intercept_target, Some("photo/[id]".to_string()));
+    }
+
+    // ===== Integration Tests: Parallel + Intercepting Routes =====
+
+    #[test]
+    fn test_parallel_and_intercepting_together() {
+        let mut router = Router::new();
+
+        // Dashboard with parallel slots
+        router.add_route(Route::from_path("pages/dashboard/@analytics/index.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/dashboard/@team/index.rhtml", "pages"));
+
+        // Intercepting route from dashboard
+        router.add_route(Route::from_path("pages/dashboard/(.)/settings/index.rhtml", "pages"));
+
+        // Both features work together
+        let slots = router.get_parallel_routes("/dashboard").unwrap();
+        assert_eq!(slots.len(), 2);
+
+        let intercept = router.get_intercepting_route("/dashboard/settings").unwrap();
+        assert!(intercept.is_intercepting);
+    }
+
+    #[test]
+    fn test_parallel_route_in_intercepting_route() {
+        let route = Route::from_path("pages/feed/(.)/modal/@content/page.rhtml", "pages");
+
+        // Has both intercepting and parallel route markers
+        assert!(route.is_intercepting);
+        assert!(route.is_parallel_route);
+        assert_eq!(route.intercept_level, Some(InterceptLevel::SameLevel));
+        assert_eq!(route.parallel_slot, Some("content".to_string()));
+        // Both (.) and @content are skipped
+        assert_eq!(route.pattern, "/feed/modal/page");
+    }
+
+    #[test]
+    fn test_phase_5_with_all_previous_features() {
+        let mut router = Router::new();
+
+        // Regular route with dynamic params
+        router.add_route(Route::from_path("pages/users/[id].rhtml", "pages"));
+
+        // Layout
+        router.add_route(Route::from_path("pages/_layout.rhtml", "pages"));
+
+        // Loading UI (Phase 4.3)
+        router.add_route(Route::from_path("pages/loading.rhtml", "pages"));
+
+        // Route group (Phase 4.2)
+        router.add_route(Route::from_path("pages/(app)/dashboard/index.rhtml", "pages"));
+
+        // Parallel routes (Phase 5.1)
+        router.add_route(Route::from_path("pages/dash/@analytics/index.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/dash/@team/index.rhtml", "pages"));
+
+        // Intercepting route (Phase 5.2)
+        router.add_route(Route::from_path("pages/feed/(.)/photo/[id].rhtml", "pages"));
+
+        // All features work together
+        assert!(router.match_route("/users/123").is_some());
+        assert!(router.get_layout("/").is_some());
+        assert!(router.get_loading_page("/").is_some());
+        assert!(router.match_route("/dashboard").is_some());
+        assert_eq!(router.get_parallel_routes("/dash").unwrap().len(), 2);
+        assert!(router.get_intercepting_route("/feed/photo/:id").is_some());
     }
 }
