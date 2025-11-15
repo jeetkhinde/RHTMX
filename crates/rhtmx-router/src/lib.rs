@@ -264,6 +264,8 @@ impl RouteMatch {
 enum PatternSegmentType {
     /// Catch-all segment: [...slug] or [...slug:alpha]
     CatchAll(String, Option<ParameterConstraint>),
+    /// Optional catch-all segment: [[...slug]] or [[...slug:alpha]] (Phase 4.1)
+    OptionalCatchAll(String, Option<ParameterConstraint>),
     /// Optional parameter: [id?] or [id:int?]
     Optional(String, Option<ParameterConstraint>),
     /// Required parameter: [id] or [id:int]
@@ -283,7 +285,17 @@ enum PatternSegmentType {
 /// - `[id:int]` → Required("id", Some(Int))
 /// - `[id:int?]` → Optional("id", Some(Int))
 /// - `[...slug:alpha]` → CatchAll("slug", Some(Alpha))
+/// - `[[...slug:alpha]]` → OptionalCatchAll("slug", Some(Alpha))
 fn classify_segment(segment: &str) -> PatternSegmentType {
+    // Check for optional catch-all: [[...name]] (double brackets)
+    if segment.starts_with("[[") && segment.ends_with("]]") {
+        let inner = &segment[2..segment.len() - 2]; // Strip [[ and ]]
+        if let Some(param_part) = inner.strip_prefix("...") {
+            let (param_name, constraint) = parse_param_with_constraint(param_part);
+            return PatternSegmentType::OptionalCatchAll(param_name, constraint);
+        }
+    }
+
     match segment.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
         Some(inner) => {
             // Parse catch-all: [...name] or [...name:constraint]
@@ -457,6 +469,23 @@ impl Route {
                     has_catch_all = true;
                     dynamic_count += 100;
                 }
+                PatternSegmentType::OptionalCatchAll(param_name, constraint) => {
+                    // Optional catch-all: [[...slug]] - matches zero or more segments
+                    pattern.push_str("/*");
+                    pattern.push_str(&param_name);
+                    pattern.push('?');
+                    params.push(param_name.clone());
+                    optional_params.push(param_name.clone());
+
+                    // Store constraint if present
+                    if let Some(c) = constraint {
+                        param_constraints.insert(param_name, c);
+                    }
+
+                    has_catch_all = true;
+                    // Lower priority than required catch-all but still high
+                    dynamic_count += 99;
+                }
                 PatternSegmentType::Optional(param_name, constraint) => {
                     pattern.push_str("/:");
                     pattern.push_str(&param_name);
@@ -505,6 +534,13 @@ impl Route {
     }
 
     /// Calculates route priority for matching order
+    ///
+    /// Lower number = higher priority (matched first)
+    /// Priority order:
+    /// 1. Static routes (0)
+    /// 2. Dynamic routes (1-999)
+    /// 3. Required catch-all (1000+)
+    /// 4. Optional catch-all (2000+) - Phase 4.1
     fn calculate_priority(
         has_catch_all: bool,
         dynamic_count: usize,
@@ -512,7 +548,14 @@ impl Route {
         optional_params: &[String],
     ) -> usize {
         if has_catch_all {
-            1000 + depth
+            // Check if catch-all is optional (present in optional_params)
+            if optional_params.iter().any(|p| p.len() > 0) {
+                // Optional catch-all: lower priority (higher number)
+                2000 + depth
+            } else {
+                // Required catch-all
+                1000 + depth
+            }
         } else if dynamic_count > 0 {
             let optional_bonus = if optional_params.is_empty() { 1 } else { 0 };
             dynamic_count + depth + optional_bonus
@@ -564,10 +607,24 @@ impl Route {
             let pattern_seg = pattern_segments[pattern_idx];
 
             match pattern_seg.chars().next() {
-                // Catch-all segment: *slug
+                // Catch-all segment: *slug or *slug? (optional)
                 Some('*') => {
-                    let param_name = &pattern_seg[1..];
+                    let is_optional = pattern_seg.ends_with('?');
+                    let param_name = if is_optional {
+                        &pattern_seg[1..pattern_seg.len() - 1]
+                    } else {
+                        &pattern_seg[1..]
+                    };
+
+                    // Check if we have remaining path segments
                     let remaining: Vec<&str> = path_segments[path_idx..].to_vec();
+
+                    // For required catch-all, need at least one segment
+                    if remaining.is_empty() && !is_optional {
+                        return None;
+                    }
+
+                    // For optional catch-all, allow zero segments
                     params.insert(param_name.to_string(), remaining.join("/"));
                     return Some(params);
                 }
@@ -1920,8 +1977,8 @@ mod tests {
         let params = route.matches("/docs/intro").unwrap();
         assert_eq!(params.get("slug"), Some(&"intro".to_string()));
 
-        let params = route.matches("/docs").unwrap();
-        assert_eq!(params.get("slug"), Some(&"".to_string()));
+        // Required catch-all does NOT match zero segments (use [[...slug]] for that)
+        assert!(route.matches("/docs").is_none());
     }
 
     #[test]
@@ -3771,5 +3828,268 @@ mod tests {
         // User would need to match again to follow chain
         let m = router.match_route("/b").unwrap();
         assert_eq!(m.redirect_target().unwrap(), "/c");
+    }
+
+    // ========================================================================
+    // Optional Catch-All Tests (Phase 4.1)
+    // ========================================================================
+
+    #[test]
+    fn test_optional_catch_all_route_creation() {
+        let route = Route::from_path("pages/docs/[[...slug]].rhtml", "pages");
+
+        assert_eq!(route.pattern, "/docs/*slug?");
+        assert_eq!(route.params, vec!["slug"]);
+        assert_eq!(route.optional_params, vec!["slug"]);
+        assert!(route.has_catch_all);
+    }
+
+    #[test]
+    fn test_optional_catch_all_matches_zero_segments() {
+        let route = Route::from_path("pages/docs/[[...slug]].rhtml", "pages");
+
+        // Should match /docs (zero segments)
+        let params = route.matches("/docs").unwrap();
+        assert_eq!(params.get("slug"), Some(&String::new()));
+    }
+
+    #[test]
+    fn test_optional_catch_all_matches_single_segment() {
+        let route = Route::from_path("pages/docs/[[...slug]].rhtml", "pages");
+
+        // Should match /docs/intro
+        let params = route.matches("/docs/intro").unwrap();
+        assert_eq!(params.get("slug"), Some(&"intro".to_string()));
+    }
+
+    #[test]
+    fn test_optional_catch_all_matches_multiple_segments() {
+        let route = Route::from_path("pages/docs/[[...slug]].rhtml", "pages");
+
+        // Should match /docs/getting-started/installation
+        let params = route.matches("/docs/getting-started/installation").unwrap();
+        assert_eq!(
+            params.get("slug"),
+            Some(&"getting-started/installation".to_string())
+        );
+    }
+
+    #[test]
+    fn test_optional_catch_all_with_constraint() {
+        let route = Route::from_path("pages/docs/[[...slug:alpha]].rhtml", "pages");
+
+        assert_eq!(route.pattern, "/docs/*slug?");
+        assert!(route.param_constraints.contains_key("slug"));
+        assert_eq!(
+            route.param_constraints.get("slug"),
+            Some(&ParameterConstraint::Alpha)
+        );
+    }
+
+    #[test]
+    fn test_optional_catch_all_vs_required_catch_all() {
+        let optional = Route::from_path("pages/docs/[[...slug]].rhtml", "pages");
+        let required = Route::from_path("pages/blog/[...slug].rhtml", "pages");
+
+        // Optional matches zero segments
+        assert!(optional.matches("/docs").is_some());
+
+        // Required does NOT match zero segments
+        assert!(required.matches("/blog").is_none());
+        assert!(required.matches("/blog/post").is_some());
+    }
+
+    #[test]
+    fn test_optional_catch_all_priority() {
+        let optional = Route::from_path("pages/docs/[[...slug]].rhtml", "pages");
+        let required = Route::from_path("pages/blog/[...slug].rhtml", "pages");
+
+        // Debug: print priorities
+        eprintln!("Optional priority: {}, params: {:?}, optional: {:?}",
+            optional.priority, optional.params, optional.optional_params);
+        eprintln!("Required priority: {}, params: {:?}, optional: {:?}",
+            required.priority, required.params, required.optional_params);
+
+        // Optional catch-all should have lower priority (higher number) than required
+        assert!(optional.priority > required.priority,
+            "Optional priority ({}) should be > Required priority ({})",
+            optional.priority, required.priority);
+    }
+
+    #[test]
+    fn test_optional_catch_all_in_router() {
+        let mut router = Router::new();
+
+        router.add_route(Route::from_path("pages/docs/[[...slug]].rhtml", "pages"));
+
+        // Test zero segments
+        let m = router.match_route("/docs").unwrap();
+        assert_eq!(m.params.get("slug"), Some(&String::new()));
+        assert_eq!(m.route.template_path, "pages/docs/[[...slug]].rhtml");
+
+        // Test single segment
+        let m = router.match_route("/docs/intro").unwrap();
+        assert_eq!(m.params.get("slug"), Some(&"intro".to_string()));
+
+        // Test multiple segments
+        let m = router.match_route("/docs/api/reference").unwrap();
+        assert_eq!(m.params.get("slug"), Some(&"api/reference".to_string()));
+    }
+
+    #[test]
+    fn test_optional_catch_all_with_static_prefix() {
+        let route = Route::from_path("pages/api/v1/[[...path]].rhtml", "pages");
+
+        assert_eq!(route.pattern, "/api/v1/*path?");
+
+        // Should match base path
+        let params = route.matches("/api/v1").unwrap();
+        assert_eq!(params.get("path"), Some(&String::new()));
+
+        // Should match with segments
+        let params = route.matches("/api/v1/users/123").unwrap();
+        assert_eq!(params.get("path"), Some(&"users/123".to_string()));
+    }
+
+    #[test]
+    fn test_optional_catch_all_route_priority_ordering() {
+        let mut router = Router::new();
+
+        // Static route should have highest priority
+        router.add_route(Route::from_path("pages/docs/getting-started.rhtml", "pages"));
+
+        // Dynamic route
+        router.add_route(Route::from_path("pages/docs/[section].rhtml", "pages"));
+
+        // Optional catch-all has lower priority
+        router.add_route(Route::from_path("pages/docs/[[...slug]].rhtml", "pages"));
+
+        // Static should match first
+        let m = router.match_route("/docs/getting-started").unwrap();
+        assert_eq!(m.route.template_path, "pages/docs/getting-started.rhtml");
+
+        // Dynamic should match next
+        let m = router.match_route("/docs/api").unwrap();
+        assert_eq!(m.route.template_path, "pages/docs/[section].rhtml");
+
+        // Optional catch-all should match base and deep paths
+        let m = router.match_route("/docs").unwrap();
+        assert_eq!(m.route.template_path, "pages/docs/[[...slug]].rhtml");
+
+        let m = router.match_route("/docs/guides/advanced/tips").unwrap();
+        assert_eq!(m.route.template_path, "pages/docs/[[...slug]].rhtml");
+    }
+
+    #[test]
+    fn test_optional_catch_all_empty_string_vs_none() {
+        let route = Route::from_path("pages/docs/[[...slug]].rhtml", "pages");
+
+        // When matching zero segments, should return empty string not None
+        let params = route.matches("/docs").unwrap();
+        assert!(params.contains_key("slug"));
+        assert_eq!(params.get("slug"), Some(&String::new()));
+    }
+
+    #[test]
+    fn test_optional_catch_all_segment_classification() {
+        // Test the classify_segment function
+        let seg = classify_segment("[[...slug]]");
+        match seg {
+            PatternSegmentType::OptionalCatchAll(name, constraint) => {
+                assert_eq!(name, "slug");
+                assert_eq!(constraint, None);
+            }
+            _ => panic!("Expected OptionalCatchAll"),
+        }
+
+        let seg = classify_segment("[[...path:alpha]]");
+        match seg {
+            PatternSegmentType::OptionalCatchAll(name, constraint) => {
+                assert_eq!(name, "path");
+                assert_eq!(constraint, Some(ParameterConstraint::Alpha));
+            }
+            _ => panic!("Expected OptionalCatchAll with constraint"),
+        }
+    }
+
+    #[test]
+    fn test_optional_catch_all_vs_optional_param() {
+        // [[...slug]] is different from [slug?]
+        let catch_all = Route::from_path("pages/docs/[[...slug]].rhtml", "pages");
+        let optional_param = Route::from_path("pages/users/[id?].rhtml", "pages");
+
+        // Catch-all captures all remaining segments as one param
+        let m = catch_all.matches("/docs/a/b/c").unwrap();
+        assert_eq!(m.get("slug"), Some(&"a/b/c".to_string()));
+
+        // Optional param only captures one segment
+        let m = optional_param.matches("/users/123").unwrap();
+        assert_eq!(m.get("id"), Some(&"123".to_string()));
+
+        // Optional param can skip
+        let m = optional_param.matches("/users").unwrap();
+        assert_eq!(m.get("id"), None);
+    }
+
+    #[test]
+    fn test_optional_catch_all_trailing_slash() {
+        let route = Route::from_path("pages/docs/[[...slug]].rhtml", "pages");
+
+        // Should match with or without trailing slash
+        let m1 = route.matches("/docs").unwrap();
+        let m2 = route.matches("/docs/").unwrap();
+
+        assert_eq!(m1.get("slug"), Some(&String::new()));
+        assert_eq!(m2.get("slug"), Some(&String::new()));
+    }
+
+    #[test]
+    fn test_optional_catch_all_real_world_use_case() {
+        // Typical Next.js docs pattern
+        let mut router = Router::new();
+
+        router.add_route(Route::from_path("pages/docs/[[...slug]].rhtml", "pages"));
+
+        // Index page
+        let m = router.match_route("/docs").unwrap();
+        assert_eq!(m.params.get("slug"), Some(&String::new()));
+
+        // Category page
+        let m = router.match_route("/docs/getting-started").unwrap();
+        assert_eq!(m.params.get("slug"), Some(&"getting-started".to_string()));
+
+        // Nested page
+        let m = router.match_route("/docs/api/components/button").unwrap();
+        assert_eq!(
+            m.params.get("slug"),
+            Some(&"api/components/button".to_string())
+        );
+    }
+
+    #[test]
+    fn test_optional_catch_all_with_constraints_validation() {
+        let route = Route::from_path("pages/files/[[...path:slug]].rhtml", "pages");
+
+        // Constraint should be stored
+        assert_eq!(
+            route.param_constraints.get("path"),
+            Some(&ParameterConstraint::Slug)
+        );
+
+        // Valid slug path
+        let params = route.matches("/files/my-document").unwrap();
+        assert_eq!(params.get("path"), Some(&"my-document".to_string()));
+
+        // Validation happens at application level, router just stores constraints
+        assert!(route
+            .param_constraints
+            .get("path")
+            .unwrap()
+            .validate("valid-slug"));
+        assert!(!route
+            .param_constraints
+            .get("path")
+            .unwrap()
+            .validate("invalid slug!"));
     }
 }
