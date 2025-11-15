@@ -454,6 +454,12 @@ impl Route {
                 continue;
             }
 
+            // Skip route groups: (folder) - Phase 4.2
+            // These organize code but don't affect URL structure
+            if segment.starts_with('(') && segment.ends_with(')') {
+                continue;
+            }
+
             // Classify the segment and handle accordingly
             match classify_segment(segment) {
                 PatternSegmentType::CatchAll(param_name, constraint) => {
@@ -4091,5 +4097,218 @@ mod tests {
             .get("path")
             .unwrap()
             .validate("invalid slug!"));
+    }
+
+    // ========================================================================
+    // Route Groups Tests (Phase 4.2)
+    // ========================================================================
+
+    #[test]
+    fn test_route_group_basic() {
+        let route = Route::from_path("pages/(marketing)/about.rhtml", "pages");
+
+        // Route group (marketing) should not appear in the pattern
+        assert_eq!(route.pattern, "/about");
+        assert_eq!(route.template_path, "pages/(marketing)/about.rhtml");
+    }
+
+    #[test]
+    fn test_route_group_multiple() {
+        let route = Route::from_path("pages/(marketing)/blog/posts.rhtml", "pages");
+
+        // Only (marketing) is skipped, blog is kept
+        assert_eq!(route.pattern, "/blog/posts");
+        assert_eq!(route.template_path, "pages/(marketing)/blog/posts.rhtml");
+    }
+
+    #[test]
+    fn test_route_group_nested() {
+        let route = Route::from_path("pages/(shop)/(products)/list.rhtml", "pages");
+
+        // Both (shop) and (products) should be skipped
+        assert_eq!(route.pattern, "/list");
+        assert_eq!(route.template_path, "pages/(shop)/(products)/list.rhtml");
+    }
+
+    #[test]
+    fn test_route_group_with_dynamic_params() {
+        let route = Route::from_path("pages/(shop)/products/[id].rhtml", "pages");
+
+        // (shop) skipped, dynamic param kept
+        assert_eq!(route.pattern, "/products/:id");
+        assert_eq!(route.params, vec!["id"]);
+    }
+
+    #[test]
+    fn test_route_group_with_catch_all() {
+        let route = Route::from_path("pages/(docs)/[[...slug]].rhtml", "pages");
+
+        // (docs) skipped, optional catch-all at root
+        assert_eq!(route.pattern, "/*slug?");
+        assert!(route.has_catch_all);
+    }
+
+    #[test]
+    fn test_route_group_organizational_structure() {
+        let mut router = Router::new();
+
+        // Marketing routes
+        router.add_route(Route::from_path("pages/(marketing)/about.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/(marketing)/blog/index.rhtml", "pages"));
+
+        // Shop routes
+        router.add_route(Route::from_path("pages/(shop)/products/index.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/(shop)/cart.rhtml", "pages"));
+
+        // All should match without the group names in URL
+        assert!(router.match_route("/about").is_some());
+        assert!(router.match_route("/blog").is_some());
+        assert!(router.match_route("/products").is_some());
+        assert!(router.match_route("/cart").is_some());
+    }
+
+    #[test]
+    fn test_route_group_with_layout() {
+        let marketing_layout = Route::from_path("pages/(marketing)/_layout.rhtml", "pages");
+        let shop_layout = Route::from_path("pages/(shop)/_layout.rhtml", "pages");
+
+        // Layouts should still be detected
+        assert!(marketing_layout.is_layout);
+        assert!(shop_layout.is_layout);
+
+        // But route group is removed from pattern
+        assert_eq!(marketing_layout.pattern, "/");
+        assert_eq!(shop_layout.pattern, "/");
+    }
+
+    #[test]
+    fn test_route_group_same_path_different_groups() {
+        let mut router = Router::new();
+
+        // Two different files with same URL pattern (different groups)
+        router.add_route(Route::from_path("pages/(v1)/api/users.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/(v2)/api/users.rhtml", "pages"));
+
+        // Both map to /api/users - last one wins (or could be an error)
+        let matches: Vec<_> = router.routes().iter()
+            .filter(|r| r.pattern == "/api/users")
+            .collect();
+
+        assert_eq!(matches.len(), 2);
+    }
+
+    #[test]
+    fn test_route_group_empty_name() {
+        // Edge case: group with no name
+        let route = Route::from_path("pages/()/about.rhtml", "pages");
+
+        // Should still skip it
+        assert_eq!(route.pattern, "/about");
+    }
+
+    #[test]
+    fn test_route_group_not_at_start() {
+        let route = Route::from_path("pages/admin/(dashboard)/stats.rhtml", "pages");
+
+        // Group in the middle
+        assert_eq!(route.pattern, "/admin/stats");
+    }
+
+    #[test]
+    fn test_route_group_with_special_chars() {
+        let route = Route::from_path("pages/(admin-panel)/users.rhtml", "pages");
+
+        // Group names can have hyphens
+        assert_eq!(route.pattern, "/users");
+        assert_eq!(route.template_path, "pages/(admin-panel)/users.rhtml");
+    }
+
+    #[test]
+    fn test_route_group_priority_unchanged() {
+        let grouped = Route::from_path("pages/(shop)/products.rhtml", "pages");
+        let non_grouped = Route::from_path("pages/products.rhtml", "pages");
+
+        // Both should have same priority (both static)
+        assert_eq!(grouped.priority, non_grouped.priority);
+        assert_eq!(grouped.pattern, non_grouped.pattern);
+    }
+
+    #[test]
+    fn test_route_group_with_named_layout() {
+        let route = Route::from_path("pages/(admin)/_layout.dashboard.rhtml", "pages");
+
+        assert!(route.is_layout);
+        assert_eq!(route.layout_name, Some("dashboard".to_string()));
+        assert_eq!(route.pattern, "/");
+    }
+
+    #[test]
+    fn test_route_group_real_world_organization() {
+        let mut router = Router::new();
+
+        // Auth group
+        router.add_route(Route::from_path("pages/(auth)/login.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/(auth)/signup.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/(auth)/reset-password.rhtml", "pages"));
+
+        // Dashboard group
+        router.add_route(Route::from_path("pages/(dashboard)/home.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/(dashboard)/settings.rhtml", "pages"));
+
+        // Public group
+        router.add_route(Route::from_path("pages/(public)/about.rhtml", "pages"));
+        router.add_route(Route::from_path("pages/(public)/contact.rhtml", "pages"));
+
+        // All accessible via clean URLs
+        assert!(router.match_route("/login").is_some());
+        assert!(router.match_route("/signup").is_some());
+        assert!(router.match_route("/reset-password").is_some());
+        assert!(router.match_route("/home").is_some());
+        assert!(router.match_route("/settings").is_some());
+        assert!(router.match_route("/about").is_some());
+        assert!(router.match_route("/contact").is_some());
+
+        // Verify correct templates are matched
+        let m = router.match_route("/login").unwrap();
+        assert_eq!(m.route.template_path, "pages/(auth)/login.rhtml");
+
+        let m = router.match_route("/home").unwrap();
+        assert_eq!(m.route.template_path, "pages/(dashboard)/home.rhtml");
+    }
+
+    #[test]
+    fn test_route_group_with_route_aliases() {
+        let route = Route::from_path("pages/(marketing)/about.rhtml", "pages")
+            .with_aliases(["/about-us", "/company"]);
+
+        assert_eq!(route.pattern, "/about");
+        assert_eq!(route.aliases.len(), 2);
+    }
+
+    #[test]
+    fn test_route_group_with_metadata() {
+        let route = Route::from_path("pages/(admin)/users.rhtml", "pages")
+            .with_meta("permission", "admin.read")
+            .with_meta("title", "User Management");
+
+        assert_eq!(route.pattern, "/users");
+        assert_eq!(route.get_meta("permission"), Some(&"admin.read".to_string()));
+    }
+
+    #[test]
+    fn test_route_group_does_not_affect_params() {
+        let route = Route::from_path("pages/(api)/users/[id]/posts/[postId].rhtml", "pages");
+
+        assert_eq!(route.pattern, "/users/:id/posts/:postId");
+        assert_eq!(route.params, vec!["id", "postId"]);
+    }
+
+    #[test]
+    fn test_route_group_multiple_levels() {
+        let route = Route::from_path("pages/(app)/(dashboard)/(main)/home.rhtml", "pages");
+
+        // All three groups should be skipped
+        assert_eq!(route.pattern, "/home");
+        assert_eq!(route.template_path, "pages/(app)/(dashboard)/(main)/home.rhtml");
     }
 }
