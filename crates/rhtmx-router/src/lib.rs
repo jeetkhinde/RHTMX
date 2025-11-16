@@ -239,25 +239,25 @@ impl Route {
         let is_not_found = filename == "not-found"; // Phase 4.5
 
         // Phase 5.1: Detect parallel routes (@slot_name)
-        let (is_parallel_route, parallel_slot) = Self::detect_parallel_route(without_ext);
+        let (is_parallel_route, parallel_slot) = route::detect_parallel_route(without_ext);
 
         // Phase 5.2: Detect intercepting routes ((.), (..), (...), (....))
         let (is_intercepting, intercept_level, intercept_target) =
-            Self::detect_intercepting_route(without_ext);
+            route::detect_intercepting_route(without_ext);
 
         // Detect named layouts: _layout.name.rhtml
         let layout_name = if is_layout {
-            Self::extract_layout_name(filename)
+            route::extract_layout_name(filename)
         } else {
             None
         };
 
         let (pattern, params, optional_params, dynamic_count, has_catch_all, param_constraints) =
-            Self::parse_pattern(without_ext);
+            route::parse_pattern(without_ext);
 
         let depth = pattern.matches('/').count();
         let priority =
-            Self::calculate_priority(has_catch_all, dynamic_count, depth, &optional_params);
+            route::calculate_priority(has_catch_all, dynamic_count, depth, &optional_params);
 
         Route {
             pattern,
@@ -289,233 +289,7 @@ impl Route {
         }
     }
 
-    /// Extracts layout name from filename using functional pattern matching
-    ///
-    /// # Examples
-    /// - `_layout` → None (default layout)
-    /// - `_layout.admin` → Some("admin")
-    /// - `_layout.root` → Some("root")
-    fn extract_layout_name(filename: &str) -> Option<String> {
-        // Match: _layout.name
-        filename
-            .strip_prefix("_layout.")
-            .map(|name| name.to_string())
-    }
-
-    /// Detects parallel route slot from path (Phase 5.1)
-    ///
-    /// # Examples
-    /// - `dashboard/@analytics/page` → (true, Some("analytics"))
-    /// - `dashboard/users` → (false, None)
-    /// - `@team/settings/@nested` → (true, Some("team"))  (first @ slot)
-    fn detect_parallel_route(path: &str) -> (bool, Option<String>) {
-        // Find first segment starting with @
-        path.split('/')
-            .find(|seg| seg.starts_with('@') && seg.len() > 1)
-            .map(|seg| {
-                let slot_name = seg[1..].to_string();
-                (true, Some(slot_name))
-            })
-            .unwrap_or((false, None))
-    }
-
-    /// Detects intercepting route level from path (Phase 5.2)
-    ///
-    /// # Examples
-    /// - `feed/(.)photo` → (true, Some(SameLevel), Some("photo"))
-    /// - `feed/(..)photo/[id]` → (true, Some(OneLevelUp), Some("photo/[id]"))
-    /// - `(...)photo/[id]` → (true, Some(FromRoot), Some("photo/[id]"))
-    /// - `normal/path` → (false, None, None)
-    fn detect_intercepting_route(path: &str) -> (bool, Option<InterceptLevel>, Option<String>) {
-        let segments: Vec<&str> = path.split('/').collect();
-
-        for (idx, seg) in segments.iter().enumerate() {
-            let level = match *seg {
-                "(.)" => Some(InterceptLevel::SameLevel),
-                "(..)" => Some(InterceptLevel::OneLevelUp),
-                "(...)" => Some(InterceptLevel::FromRoot),
-                "(....)" => Some(InterceptLevel::TwoLevelsUp),
-                _ => None,
-            };
-
-            if let Some(intercept_level) = level {
-                // Capture the remaining path after the intercept marker
-                let target = if idx + 1 < segments.len() {
-                    Some(segments[idx + 1..].join("/"))
-                } else {
-                    None
-                };
-                return (true, Some(intercept_level), target);
-            }
-        }
-
-        (false, None, None)
-    }
-
-    /// Parses a file path pattern into route components
-    ///
-    /// Returns: (pattern, params, optional_params, dynamic_count, has_catch_all, constraints)
-    fn parse_pattern(
-        path: &str,
-    ) -> (
-        String,
-        Vec<String>,
-        Vec<String>,
-        usize,
-        bool,
-        HashMap<String, ParameterConstraint>,
-    ) {
-        let mut pattern = String::new();
-        let mut params = Vec::new();
-        let mut optional_params = Vec::new();
-        let mut dynamic_count = 0;
-        let mut has_catch_all = false;
-        let mut param_constraints = HashMap::new();
-
-        for segment in path.split('/') {
-            // Skip empty segments and special directory names
-            if segment.is_empty()
-                || segment == "_layout"
-                || segment.starts_with("_layout.") // Skip named layouts like _layout.admin
-                || segment == "_error"
-                || segment == "_nolayout" // Skip nolayout markers
-                || segment == "loading" // Phase 4.3
-                || segment == "_template" // Phase 4.4
-                || segment == "not-found" // Phase 4.5
-                || segment == "index"
-            {
-                continue;
-            }
-
-            // Phase 5.2: Skip intercepting route markers ((.), (..), (...), (....))
-            // These modify matching behavior but aren't part of the pattern
-            // Check this BEFORE route groups because they also use parentheses
-            if matches!(segment, "(.)" | "(..)" | "(...)" | "(....)") {
-                continue;
-            }
-
-            // Skip route groups: (folder) - Phase 4.2
-            // These organize code but don't affect URL structure
-            // Must check AFTER intercepting routes to avoid false positives
-            if segment.starts_with('(') && segment.ends_with(')') {
-                continue;
-            }
-
-            // Phase 5.1: Skip parallel route slots (@slot_name)
-            // These are rendered in parallel, not part of URL
-            if segment.starts_with('@') {
-                continue;
-            }
-
-            // Classify the segment and handle accordingly
-            match classify_segment(segment) {
-                PatternSegmentType::CatchAll(param_name, constraint) => {
-                    pattern.push_str("/*");
-                    pattern.push_str(&param_name);
-                    params.push(param_name.clone());
-
-                    // Store constraint if present
-                    if let Some(c) = constraint {
-                        param_constraints.insert(param_name, c);
-                    }
-
-                    has_catch_all = true;
-                    dynamic_count += 100;
-                }
-                PatternSegmentType::OptionalCatchAll(param_name, constraint) => {
-                    // Optional catch-all: [[...slug]] - matches zero or more segments
-                    pattern.push_str("/*");
-                    pattern.push_str(&param_name);
-                    pattern.push('?');
-                    params.push(param_name.clone());
-                    optional_params.push(param_name.clone());
-
-                    // Store constraint if present
-                    if let Some(c) = constraint {
-                        param_constraints.insert(param_name, c);
-                    }
-
-                    has_catch_all = true;
-                    // Lower priority than required catch-all but still high
-                    dynamic_count += 99;
-                }
-                PatternSegmentType::Optional(param_name, constraint) => {
-                    pattern.push_str("/:");
-                    pattern.push_str(&param_name);
-                    pattern.push('?');
-                    params.push(param_name.clone());
-                    optional_params.push(param_name.clone());
-
-                    // Store constraint if present
-                    if let Some(c) = constraint {
-                        param_constraints.insert(param_name, c);
-                    }
-
-                    dynamic_count += 1;
-                }
-                PatternSegmentType::Required(param_name, constraint) => {
-                    pattern.push_str("/:");
-                    pattern.push_str(&param_name);
-                    params.push(param_name.clone());
-
-                    // Store constraint if present
-                    if let Some(c) = constraint {
-                        param_constraints.insert(param_name, c);
-                    }
-
-                    dynamic_count += 1;
-                }
-                PatternSegmentType::Static(seg) => {
-                    pattern.push('/');
-                    pattern.push_str(&seg);
-                }
-            }
-        }
-
-        if pattern.is_empty() {
-            pattern = "/".to_string();
-        }
-
-        (
-            pattern,
-            params,
-            optional_params,
-            dynamic_count,
-            has_catch_all,
-            param_constraints,
-        )
-    }
-
-    /// Calculates route priority for matching order
-    ///
-    /// Lower number = higher priority (matched first)
-    /// Priority order:
-    /// 1. Static routes (0)
-    /// 2. Dynamic routes (1-999)
-    /// 3. Required catch-all (1000+)
-    /// 4. Optional catch-all (2000+) - Phase 4.1
-    fn calculate_priority(
-        has_catch_all: bool,
-        dynamic_count: usize,
-        depth: usize,
-        optional_params: &[String],
-    ) -> usize {
-        if has_catch_all {
-            // Check if catch-all is optional (present in optional_params)
-            if optional_params.iter().any(|p| p.len() > 0) {
-                // Optional catch-all: lower priority (higher number)
-                2000 + depth
-            } else {
-                // Required catch-all
-                1000 + depth
-            }
-        } else if dynamic_count > 0 {
-            let optional_bonus = if optional_params.is_empty() { 1 } else { 0 };
-            dynamic_count + depth + optional_bonus
-        } else {
-            0
-        }
-    }
+    // Helper functions now in route module (detection.rs and parser.rs)
 
     /// Matches this route against a path (case-sensitive)
     pub fn matches(&self, path: &str) -> Option<HashMap<String, String>> {
@@ -1122,7 +896,7 @@ impl Route {
         };
 
         let (pattern, params, optional_params, dynamic_count, has_catch_all, param_constraints) = if has_params {
-            Self::parse_pattern(&normalized_from)
+            route::parse_pattern(&normalized_from)
         } else {
             // Static redirect - use pattern as-is, ensuring it starts with /
             let normalized = if from.starts_with('/') {
@@ -1135,7 +909,7 @@ impl Route {
 
         let depth = pattern.matches('/').count();
         let priority =
-            Self::calculate_priority(has_catch_all, dynamic_count, depth, &optional_params);
+            route::calculate_priority(has_catch_all, dynamic_count, depth, &optional_params);
 
         Route {
             pattern,
