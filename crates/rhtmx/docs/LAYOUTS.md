@@ -416,6 +416,14 @@ Run the demo:
 cargo run --example layouts_demo
 ```
 
+## Advanced Topics
+
+For more advanced layout patterns and framework integration:
+
+- **[SLOTS_FRAMEWORK_INTEGRATION.md](SLOTS_FRAMEWORK_INTEGRATION.md)** - Using slots with Axum, Rocket, Actix-Web, Warp, and other frameworks
+- **[../../rhtmx-router/ADVANCED_LAYOUTS_GUIDE.md](../../rhtmx-router/ADVANCED_LAYOUTS_GUIDE.md)** - Layout hierarchy, intercepting routes, and dynamic sidebars
+- **[../../rhtmx-router/LAYOUT_QUICK_REFERENCE.md](../../rhtmx-router/LAYOUT_QUICK_REFERENCE.md)** - Quick reference cheat sheet
+
 ## See Also
 
 - [FEATURES.md](./FEATURES.md) - All RHTMX features

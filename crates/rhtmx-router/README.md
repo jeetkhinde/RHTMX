@@ -444,18 +444,62 @@ src/
 
 ---
 
+## Builder Methods for Layout Control
+
+Configure layouts with functional builder methods:
+
+```rust
+use rhtmx_router::{Route, LayoutOption};
+
+// Skip all layouts
+let route = Route::from_path("pages/api/data.rhtml", "pages")
+    .with_no_layout();
+
+// Use root layout only
+let route = Route::from_path("pages/dashboard/print.rhtml", "pages")
+    .with_root_layout();
+
+// Use specific named layout
+let route = Route::from_path("pages/vendors/settings.rhtml", "pages")
+    .with_named_layout("vendor");
+
+// Use layout at specific pattern
+let route = Route::from_path("pages/api/v2/users.rhtml", "pages")
+    .with_layout_pattern("/api");
+
+// Or use LayoutOption enum directly
+let route = Route::from_path("pages/print.rhtml", "pages")
+    .with_layout_option(LayoutOption::Root);
+```
+
+See [ADVANCED_LAYOUTS_GUIDE.md](ADVANCED_LAYOUTS_GUIDE.md) for comprehensive patterns.
+
+---
+
+## Advanced Layout Patterns
+
+For complex layout scenarios, see the **[Advanced Layouts Guide](ADVANCED_LAYOUTS_GUIDE.md)**:
+
+- 🚫 The `_nolayout` convention for blocking layout inheritance
+- 📋 Layout hierarchy skipping (skip parent, use grandparent)
+- 🏷️ Named layouts for multiple layout options
+- 🔀 Intercepting routes for modals and overlays
+- 🛠️ Integration with other web frameworks
+- 🎯 Dynamic sidebar loading patterns
+
+---
+
 ## Known Limitations
 
 See [CRITICAL_MISSING_FEATURES.md](CRITICAL_MISSING_FEATURES.md) for details.
 
-**Major:**
-- No way to skip parent layouts
-- No explicit "no layout" option
-- No layout composition control
+**Resolved in v0.1.0+:**
+- ✅ Way to skip parent layouts (via `LayoutOption::Root`)
+- ✅ Explicit "no layout" option (via `with_no_layout()`)
+- ✅ Layout composition control (via builder methods)
 
 **Minor:**
 - No middleware/guards
-- No route metadata
 - No regex patterns
 - No named routes
 - O(n) route matching (consider trie for 1000+ routes)
@@ -506,7 +550,30 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-## Resources
+## Resources & Documentation
+
+### Getting Started
+
+- **[README.md](README.md)** - You are here! Basic routing guide
+- **[LAYOUT_QUICK_REFERENCE.md](LAYOUT_QUICK_REFERENCE.md)** - One-page cheat sheet for layouts ⭐ **START HERE**
+
+### Layout Configuration
+
+- **[ADVANCED_LAYOUTS_GUIDE.md](ADVANCED_LAYOUTS_GUIDE.md)** - Comprehensive layout patterns (350+ lines)
+  - _nolayout convention
+  - Layout hierarchy skipping
+  - Named layouts
+  - Intercepting routes
+  - Framework integration
+
+### Framework Integration
+
+- **[SLOTS_FRAMEWORK_INTEGRATION.md](../rhtmx/docs/SLOTS_FRAMEWORK_INTEGRATION.md)** - Framework examples (400+ lines)
+  - Axum, Rocket, Actix-Web, Warp, Tonic
+  - Dynamic sidebar loading patterns
+  - Real-world complete examples
+
+### Architecture & Performance
 
 - [Improvements Summary](IMPROVEMENTS_SUMMARY.md) - Full changelog
 - [Functional Programming Guide](FUNCTIONAL_QUICK_REFERENCE.md) - Techniques used

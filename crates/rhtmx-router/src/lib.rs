@@ -49,16 +49,16 @@ use std::collections::HashMap;
 // ============================================================================
 
 mod constraint;
-mod layout;
 mod intercept;
+mod layout;
 pub mod path;
 pub mod route;
 
 // Re-export public types for backward compatibility
 pub use constraint::ParameterConstraint;
-pub use layout::LayoutOption;
 pub use intercept::InterceptLevel;
-pub use path::{PathHierarchy, is_valid_path, normalize_path};
+pub use layout::LayoutOption;
+pub use path::{is_valid_path, normalize_path, PathHierarchy};
 pub use route::pattern::{classify_segment, parse_param_with_constraint, PatternSegmentType};
 
 // ============================================================================
@@ -315,11 +315,7 @@ impl Route {
             } else {
                 self.pattern == path
             };
-            return if matches {
-                Some(HashMap::new())
-            } else {
-                None
-            };
+            return if matches { Some(HashMap::new()) } else { None };
         }
 
         let pattern_segments: Vec<&str> =
@@ -420,14 +416,12 @@ impl Route {
 
         if path_idx == path_segments.len() {
             // Validate all parameters against constraints (functional validation)
-            let all_valid = params
-                .iter()
-                .all(|(param_name, param_value)| {
-                    self.param_constraints
-                        .get(param_name)
-                        .map(|constraint| constraint.validate(param_value))
-                        .unwrap_or(true) // No constraint = always valid
-                });
+            let all_valid = params.iter().all(|(param_name, param_value)| {
+                self.param_constraints
+                    .get(param_name)
+                    .map(|constraint| constraint.validate(param_value))
+                    .unwrap_or(true) // No constraint = always valid
+            });
 
             if all_valid {
                 Some(params)
@@ -697,17 +691,15 @@ impl Route {
         }
 
         // Then try all aliases (functional iteration with short-circuit)
-        self.aliases
-            .iter()
-            .find_map(|alias_pattern| {
-                // For aliases, we need to parse them as if they were routes
-                // For now, static aliases only (no parameters in aliases)
-                if self.matches_static_alias(path, alias_pattern) {
-                    Some(HashMap::new())
-                } else {
-                    None
-                }
-            })
+        self.aliases.iter().find_map(|alias_pattern| {
+            // For aliases, we need to parse them as if they were routes
+            // For now, static aliases only (no parameters in aliases)
+            if self.matches_static_alias(path, alias_pattern) {
+                Some(HashMap::new())
+            } else {
+                None
+            }
+        })
     }
 
     /// Helper to match static alias patterns (functional helper)
@@ -784,9 +776,7 @@ impl Route {
                 match segment.chars().next() {
                     // Dynamic parameter: :id or :id?
                     Some(':') => {
-                        let param_name = segment
-                            .trim_start_matches(':')
-                            .trim_end_matches('?');
+                        let param_name = segment.trim_start_matches(':').trim_end_matches('?');
 
                         // Optional parameter
                         if segment.ends_with('?') {
@@ -795,7 +785,7 @@ impl Route {
                                 params
                                     .get(param_name)
                                     .map(|v| v.clone())
-                                    .unwrap_or_default()
+                                    .unwrap_or_default(),
                             )
                         } else {
                             // Required - must be present
@@ -815,10 +805,7 @@ impl Route {
 
         // If any required parameter was missing, result_segments will be None
         result_segments.map(|segs| {
-            let filtered: Vec<String> = segs
-                .into_iter()
-                .filter(|s| !s.is_empty())
-                .collect();
+            let filtered: Vec<String> = segs.into_iter().filter(|s| !s.is_empty()).collect();
 
             if filtered.is_empty() {
                 "/".to_string()
@@ -864,7 +851,11 @@ impl Route {
     /// let route = Route::redirect("/maintenance", "/status", 302);
     /// assert_eq!(route.redirect_status, Some(302));
     /// ```
-    pub fn redirect(from_pattern: impl Into<String>, to_url: impl Into<String>, status: u16) -> Self {
+    pub fn redirect(
+        from_pattern: impl Into<String>,
+        to_url: impl Into<String>,
+        status: u16,
+    ) -> Self {
         let from = from_pattern.into();
         let target = to_url.into();
 
@@ -895,17 +886,18 @@ impl Route {
             from.clone()
         };
 
-        let (pattern, params, optional_params, dynamic_count, has_catch_all, param_constraints) = if has_params {
-            route::parse_pattern(&normalized_from)
-        } else {
-            // Static redirect - use pattern as-is, ensuring it starts with /
-            let normalized = if from.starts_with('/') {
-                from.clone()
+        let (pattern, params, optional_params, dynamic_count, has_catch_all, param_constraints) =
+            if has_params {
+                route::parse_pattern(&normalized_from)
             } else {
-                format!("/{}", from)
+                // Static redirect - use pattern as-is, ensuring it starts with /
+                let normalized = if from.starts_with('/') {
+                    from.clone()
+                } else {
+                    format!("/{}", from)
+                };
+                (normalized, Vec::new(), Vec::new(), 0, false, HashMap::new())
             };
-            (normalized, Vec::new(), Vec::new(), 0, false, HashMap::new())
-        };
 
         let depth = pattern.matches('/').count();
         let priority =
@@ -1138,7 +1130,8 @@ impl Router {
             }
         } else if route.is_intercepting {
             // Phase 5.2: Intercepting routes
-            self.intercepting_routes.insert(route.pattern.clone(), route);
+            self.intercepting_routes
+                .insert(route.pattern.clone(), route);
         } else {
             // Regular route
             self.routes.push(route);
@@ -1338,11 +1331,7 @@ impl Router {
     ///
     /// Uses pattern matching and HashMap lookups for O(1) performance.
     /// Checks nolayout markers when using Inherit option.
-    pub fn get_layout_with_option(
-        &self,
-        pattern: &str,
-        option: &LayoutOption,
-    ) -> Option<&Route> {
+    pub fn get_layout_with_option(&self, pattern: &str, option: &LayoutOption) -> Option<&Route> {
         // Functional pattern matching for layout resolution
         match option {
             // No layout - early return (short-circuit)
@@ -1378,8 +1367,7 @@ impl Router {
         let normalized = normalize_path(pattern);
 
         // Walk up hierarchy and check if any parent has a nolayout marker
-        PathHierarchy::new(&normalized)
-            .any(|path| self.nolayout_patterns.contains(path))
+        PathHierarchy::new(&normalized).any(|path| self.nolayout_patterns.contains(path))
     }
 
     /// Finds layout by name (O(1) HashMap lookup)
@@ -1694,4 +1682,3 @@ impl Default for Router {
         Self::new()
     }
 }
-
