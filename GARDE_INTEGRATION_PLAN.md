@@ -69,31 +69,66 @@
 
 ## Architecture Design
 
+### Simplified API Design (Garde Hidden)
+
+**User Experience** - Super clean, garde is invisible:
+```rust
+// ✅ CLEAN: User never sees garde complexity
+#[derive(FormField)]
+struct LoginForm {
+    #[email]
+    #[no_public_domains]
+    email: String,
+
+    #[password(strength = "strong")]
+    #[min_length(8)]
+    password: String,
+}
+
+// Simple validation call
+form.validate()?;
+```
+
+**Under the Hood** - FormField macro handles everything:
+- Uses garde internally for built-in validators (`email`, `min_length`, etc.)
+- Uses custom functions for RHTMX-specific validators (`no_public_domains`, `password`)
+- Auto-injects context (no user boilerplate)
+- Merges all errors into single result
+
 ### Three-Layer Integration Strategy
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Layer 1: Server-Side Validation (garde Runtime)            │
+│ Layer 1: Server-Side Validation (Hidden from User)         │
 ├─────────────────────────────────────────────────────────────┤
-│ #[derive(garde::Validate)]                                 │
-│ struct LoginForm {                                          │
-│     #[garde(email, custom(no_public_email))]               │
-│     email: String,                                          │
-│     #[garde(length(min=8), custom(password_strength))]     │
-│     password: String,                                       │
-│ }                                                           │
+│ FormField macro generates:                                 │
 │                                                             │
-│ form.validate(&ctx)?; // garde runtime validation          │
+│ impl Validate for LoginForm {                              │
+│   fn validate(&self) -> Result<(), ValidationErrors> {     │
+│     // Auto-inject context                                 │
+│     let ctx = EmailValidationContext { ... };              │
+│                                                             │
+│     // Use garde for built-in validators                   │
+│     garde::validate_email(&self.email)?;                   │
+│     garde::validate_length(&self.password, 8, None)?;      │
+│                                                             │
+│     // Use custom for RHTMX validators                     │
+│     no_public_email(&self.email, &ctx)?;                   │
+│     password_strength(&self.password)?;                    │
+│   }                                                         │
+│ }                                                           │
 └─────────────────────────────────────────────────────────────┘
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 2: FormField Macro (Compile-Time)                    │
 ├─────────────────────────────────────────────────────────────┤
-│ #[derive(FormField)] // ADAPTED FOR GARDE                  │
-│ - Parse garde attributes instead of validate attributes    │
-│ - Map garde rules → HTML5 attrs (same as before)          │
-│ - Map garde rules → data-validate JSON (same as before)   │
-│ - Generate FieldAttrs struct (unchanged)                   │
+│ #[derive(FormField)]                                       │
+│ - Parse simple attributes (#[email], #[no_public_domains]) │
+│ - Map built-ins → garde validators internally             │
+│ - Map RHTMX-specific → custom validators                  │
+│ - Generate HTML5 attrs (same as before)                   │
+│ - Generate data-validate JSON (same as before)            │
+│ - Generate Validate trait impl (new)                      │
 │                                                             │
 │ Output: <input type="email" required data-validate="..."/> │
 └─────────────────────────────────────────────────────────────┘
@@ -108,6 +143,8 @@
 │ validateField(name, value, rules) → ValidationError[]     │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Key Design Principle**: Garde is an implementation detail, not part of the user-facing API.
 
 ---
 
@@ -383,7 +420,7 @@ pub fn validate_length(value: &str, min: usize, max: usize) -> bool { /* ... */ 
 **File**: `/examples/form/src/main.rs` (or similar)
 
 ```rust
-// BEFORE:
+// BEFORE (current):
 #[derive(Validate, FormField)]
 struct LoginForm {
     #[validate(email)]
@@ -392,23 +429,28 @@ struct LoginForm {
     password: String,
 }
 
-// AFTER:
-#[derive(garde::Validate, FormField)]
+form.validate()?;
+
+// AFTER (with garde hidden):
+#[derive(FormField)]  // Just one derive!
 struct LoginForm {
-    #[garde(email, custom(no_public_email))]
+    #[email]
+    #[no_public_domains]
     email: String,
-    #[garde(length(min = 8), custom(password_strength))]
+
+    #[password(strength = "strong")]
+    #[min_length(8)]
     password: String,
 }
 
-// Validation context
-let ctx = EmailValidationContext {
-    public_domains: &["gmail.com", "yahoo.com", ...],
-    blocked_domains: vec![],
-};
-
-form.validate(&ctx)?;
+form.validate()?;  // Same simple call, context auto-injected
 ```
+
+**Key Improvements**:
+- ✅ No `garde::Validate` derive needed
+- ✅ No context creation/passing
+- ✅ Clean stacked attributes
+- ✅ Same validation call
 
 #### 4.2 Test Coverage
 
