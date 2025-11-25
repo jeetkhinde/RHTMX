@@ -8,6 +8,7 @@ Automatic IndexedDB synchronization for RHTMX applications with **minimal develo
 - ✅ **Offline support**: Mutations queue when offline, sync when online
 - ✅ **Real-time updates**: SSE pushes changes to all connected clients
 - ✅ **Conflict resolution**: Last-write-wins, client-wins, server-wins strategies
+- ✅ **Field-level sync**: CRDT-like field granularity (like Yjs/Automerge)
 - ✅ **Type-safe**: Rust's type system ensures correctness
 - ✅ **Lightweight client**: ~12 KB JavaScript (no external dependencies)
 - ✅ **Works with existing code**: No changes to your HTMX templates
@@ -283,11 +284,77 @@ Requires:
 - Simple conflict resolution (CRDTs planned)
 - 50MB IndexedDB quota (browser default)
 
+## Field-Level Sync (New!)
+
+rhtmx-sync now supports **field-level synchronization** similar to Yjs and Automerge. This allows fine-grained conflict resolution at the field level instead of syncing entire entities.
+
+### Quick Start with Field-Level Sync
+
+#### 1. Enable field-level sync in your config
+
+```rust
+use rhtmx_sync::{SyncEngine, SyncConfig, FieldMergeStrategy};
+
+let sync_engine = SyncEngine::new(
+    SyncConfig::new(db_pool.clone(), vec!["users".to_string()])
+        .with_field_sync(FieldMergeStrategy::LastWriteWins)
+).await?;
+```
+
+#### 2. Use the field-level sync client
+
+```html
+<script src="/api/sync/field-client.js"
+        data-sync-entities="users"
+        data-field-strategy="last-write-wins"
+        data-debug="true">
+</script>
+```
+
+#### 3. Track field changes from JavaScript
+
+```javascript
+// Record a field change
+window.RHTMXFieldSync.recordFieldChange('users', '1', 'name', 'Alice');
+
+// Listen for field-level conflicts
+window.addEventListener('rhtmx:field:conflict', (e) => {
+    console.log('Field conflict:', e.detail);
+});
+```
+
+### Field Merge Strategies
+
+```rust
+pub enum FieldMergeStrategy {
+    LastWriteWins,  // Timestamp-based (default)
+    KeepBoth,       // Report conflict, let app decide
+    ServerWins,     // Always prefer server value
+    ClientWins,     // Always prefer client value
+}
+```
+
+### Field-Level API Endpoints
+
+When field-level sync is enabled, these additional endpoints are available:
+
+- `GET /api/field-sync/:entity?since=:version` - Get field changes
+- `POST /api/field-sync/:entity` - Push field changes
+- `GET /api/field-sync/:entity/:entity_id/latest` - Get latest field values
+- `GET /api/sync/field-client.js` - Field sync JavaScript client
+
+### Benefits of Field-Level Sync
+
+1. **Fine-grained conflict resolution**: Two users can edit different fields simultaneously without conflicts
+2. **Reduced bandwidth**: Only changed fields are transmitted
+3. **Better user experience**: Less chance of losing work due to conflicts
+4. **CRDT-like behavior**: Similar to Yjs, Automerge for collaborative editing
+
 ## Roadmap
 
 - [ ] PostgreSQL support (LISTEN/NOTIFY)
 - [ ] CRDT integration (Automerge)
-- [ ] Field-level sync (not just entity-level)
+- [x] Field-level sync (not just entity-level) ✅
 - [ ] WebSocket option (alternative to SSE)
 - [ ] Multi-tab sync (BroadcastChannel)
 - [ ] Compression for large payloads
