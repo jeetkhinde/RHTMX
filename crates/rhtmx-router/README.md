@@ -491,18 +491,14 @@ For complex layout scenarios, see the **[Advanced Layouts Guide](ADVANCED_LAYOUT
 
 ## Known Limitations
 
-See [CRITICAL_MISSING_FEATURES.md](CRITICAL_MISSING_FEATURES.md) for details.
+**Framework-Level Features** (should be implemented in RHTMX framework):
+- Middleware/guards - Auth, rate limiting, logging
+- Route handlers - HTTP method-specific handlers
 
-**Resolved in v0.1.0+:**
-- ✅ Way to skip parent layouts (via `LayoutOption::Root`)
-- ✅ Explicit "no layout" option (via `with_no_layout()`)
-- ✅ Layout composition control (via builder methods)
-
-**Minor:**
-- No middleware/guards
-- No regex patterns
-- No named routes
+**Router-Specific:**
 - O(n) route matching (consider trie for 1000+ routes)
+
+**Note:** Most features are implemented! Named routes, layout control, parameter constraints, aliases, and redirects are all available. See [NEXTJS_COMPARISON.md](NEXTJS_COMPARISON.md) for full feature comparison.
 
 ---
 
@@ -575,10 +571,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ### Architecture & Performance
 
-- [Improvements Summary](IMPROVEMENTS_SUMMARY.md) - Full changelog
-- [Functional Programming Guide](FUNCTIONAL_QUICK_REFERENCE.md) - Techniques used
-- [Approach Comparison](FUNCTIONAL_APPROACH_COMPARISON.md) - Benchmarks
-- [Missing Features](CRITICAL_MISSING_FEATURES.md) - Known limitations
+- [Next.js Comparison](NEXTJS_COMPARISON.md) - Feature parity comparison
+- [Advanced Layouts Guide](ADVANCED_LAYOUTS_GUIDE.md) - Complex layout patterns
+- [Layout Quick Reference](LAYOUT_QUICK_REFERENCE.md) - Cheat sheet
 
 ---
 
