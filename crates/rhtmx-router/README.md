@@ -1,6 +1,6 @@
 # RHTMX Router
 
-A high-performance, zero-dependency file-system-based routing library for Rust with functional programming optimizations.
+A high-performance, zero-dependency file-system-based routing library for Rust with Next.js App Router conventions and functional programming optimizations.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
@@ -28,10 +28,10 @@ use rhtmx_router::{Router, Route};
 // Create router
 let mut router = Router::new();
 
-// Add routes
-router.add_route(Route::from_path("pages/index.rhtml", "pages"));
-router.add_route(Route::from_path("pages/about.rhtml", "pages"));
-router.add_route(Route::from_path("pages/users/[id].rhtml", "pages"));
+// Add routes (App Router convention: page.rjx files)
+router.add_route(Route::from_path("pages/page.rjx", "pages"));
+router.add_route(Route::from_path("pages/about/page.rjx", "pages"));
+router.add_route(Route::from_path("pages/users/[id]/page.rjx", "pages"));
 
 // Match routes
 let route_match = router.match_route("/users/123").unwrap();
@@ -56,21 +56,21 @@ rhtmx-router = "0.1.0"
 ### Static Routes
 
 ```
-pages/about.rhtml       → /about
-pages/contact.rhtml     → /contact
+pages/about/page.rjx       → /about
+pages/contact/page.rjx     → /contact
 ```
 
 ### Dynamic Parameters
 
 ```
-pages/users/[id].rhtml              → /users/:id
-pages/posts/[year]/[slug].rhtml     → /posts/:year/:slug
+pages/users/[id]/page.rjx              → /users/:id
+pages/posts/[year]/[slug]/page.rjx     → /posts/:year/:slug
 ```
 
 ### Optional Parameters
 
 ```
-pages/posts/[id?].rhtml             → /posts/:id?
+pages/posts/[id?]/page.rjx             → /posts/:id?
 
 Matches:
   /posts/123  → id = "123"
@@ -80,20 +80,21 @@ Matches:
 ### Catch-All Routes
 
 ```
-pages/docs/[...slug].rhtml          → /docs/*slug
+pages/docs/[...slug]/page.rjx          → /docs/*slug
 
 Matches:
   /docs/guide/intro  → slug = "guide/intro"
   /docs/api         → slug = "api"
-  /docs             → slug = ""
 ```
 
-### Index Routes
+### Root & Section Pages
 
 ```
-pages/index.rhtml           → /
-pages/users/index.rhtml     → /users
+pages/page.rjx           → /
+pages/users/page.rjx     → /users
 ```
+
+**Note:** Following Next.js App Router conventions, each route directory contains a `page.rjx` file.
 
 ---
 
@@ -106,11 +107,11 @@ Layouts are automatically inherited through the directory hierarchy.
 ```
 pages/
   ├── _layout.rhtml              # Root layout
-  ├── index.rhtml                # Uses root layout
+  ├── page.rjx                   # Home page (uses root layout)
   ├── dashboard/
   │   ├── _layout.rhtml          # Dashboard layout
-  │   ├── index.rhtml            # Uses dashboard layout
-  │   └── settings.rhtml         # Uses dashboard layout
+  │   ├── page.rjx            # Uses dashboard layout
+  │   └── settings/page.rjx         # Uses dashboard layout
   └── api/
       ├── _error.rhtml           # API error page
       └── users.rhtml            # Uses root layout (no API layout exists)
@@ -204,7 +205,7 @@ Static routes always match before dynamic routes at the same path depth.
 
 ```rust
 let router = Router::with_case_insensitive(true);
-router.add_route(Route::from_path("pages/about.rhtml", "pages"));
+router.add_route(Route::from_path("pages/about/page.rjx", "pages"));
 
 // All match:
 router.match_route("/about");   // ✅
@@ -327,8 +328,8 @@ use rhtmx_router::{Router, Route};
 
 let mut router = Router::new();
 
-router.add_route(Route::from_path("pages/index.rhtml", "pages"));
-router.add_route(Route::from_path("pages/about.rhtml", "pages"));
+router.add_route(Route::from_path("pages/page.rjx", "pages"));
+router.add_route(Route::from_path("pages/about/page.rjx", "pages"));
 router.add_route(Route::from_path("pages/users/[id].rhtml", "pages"));
 router.add_route(Route::from_path("pages/docs/[...slug].rhtml", "pages"));
 
@@ -460,7 +461,7 @@ let route = Route::from_path("pages/dashboard/print.rhtml", "pages")
     .with_root_layout();
 
 // Use specific named layout
-let route = Route::from_path("pages/vendors/settings.rhtml", "pages")
+let route = Route::from_path("pages/vendors/settings/page.rjx", "pages")
     .with_named_layout("vendor");
 
 // Use layout at specific pattern

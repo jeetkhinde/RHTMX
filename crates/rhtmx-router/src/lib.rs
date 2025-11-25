@@ -226,7 +226,14 @@ impl Route {
             .unwrap_or(file_path)
             .trim_start_matches('/');
 
-        let without_ext = relative.strip_suffix(".rhtml").unwrap_or(relative);
+        // Support multiple extensions: .rjx (App Router), .rhtml (legacy)
+        let without_ext = if let Some(s) = relative.strip_suffix(".rjx") {
+            s
+        } else if let Some(s) = relative.strip_suffix(".rhtml") {
+            s
+        } else {
+            relative
+        };
 
         // Extract filename to check for special files
         let filename = without_ext.split('/').last().unwrap_or("");

@@ -399,8 +399,11 @@ fn load_templates_from_dir_pure(
             // Recursively load subdirectories
             let sub_results = load_templates_from_dir_pure(&path, pages_dir)?;
             results.extend(sub_results);
-        } else if path.extension().and_then(|s| s.to_str()) == Some("rhtmx") {
-            // Load .rhtmx files
+        } else if matches!(
+            path.extension().and_then(|s| s.to_str()),
+            Some("rjx" | "rhtml" | "rhtmx")
+        ) {
+            // Load template files (.rjx for App Router, .rhtml/.rhtmx for legacy)
             let template_data = load_template_pure(&path, pages_dir)?;
             results.push(template_data);
         }
@@ -526,17 +529,17 @@ fn path_to_route_pure(path: &Path, pages_dir: &Path) -> String {
             format!("/{}", route)
         }
     }
-    // Convert "index" to "/" and "users/index" to "/users"
-    else if route == "index" || route.is_empty() {
+    // Convert "page" to "/" and "users/page" to "/users" (App Router convention)
+    else if route == "page" || route.is_empty() {
         "/".to_string()
-    } else if route.ends_with("/index") {
-        let without_index = route[..route.len() - 6].to_string(); // Remove "/index"
-        if without_index.is_empty() {
+    } else if route.ends_with("/page") {
+        let without_page = route[..route.len() - 5].to_string(); // Remove "/page"
+        if without_page.is_empty() {
             "/".to_string()
-        } else if without_index.starts_with('/') {
-            without_index
+        } else if without_page.starts_with('/') {
+            without_page
         } else {
-            format!("/{}", without_index)
+            format!("/{}", without_page)
         }
     } else if route.starts_with('/') {
         route
@@ -565,14 +568,14 @@ mod tests {
     fn test_path_to_route() {
         let loader = TemplateLoader::new("pages");
 
-        // Test cases
-        assert_eq!(loader.path_to_route(Path::new("pages/index.rhtmx")), "/");
+        // Test cases (App Router conventions with page.rjx)
+        assert_eq!(loader.path_to_route(Path::new("pages/page.rjx")), "/");
         assert_eq!(
-            loader.path_to_route(Path::new("pages/about.rhtmx")),
+            loader.path_to_route(Path::new("pages/about/page.rjx")),
             "/about"
         );
         assert_eq!(
-            loader.path_to_route(Path::new("pages/users/profile.rhtmx")),
+            loader.path_to_route(Path::new("pages/users/profile/page.rjx")),
             "/users/profile"
         );
     }
@@ -581,17 +584,17 @@ mod tests {
     fn test_path_to_route_pure() {
         let pages_dir = PathBuf::from("pages");
 
-        // Test cases
+        // Test cases (App Router conventions with page.rjx)
         assert_eq!(
-            path_to_route_pure(Path::new("pages/index.rhtmx"), &pages_dir),
+            path_to_route_pure(Path::new("pages/page.rjx"), &pages_dir),
             "/"
         );
         assert_eq!(
-            path_to_route_pure(Path::new("pages/about.rhtmx"), &pages_dir),
+            path_to_route_pure(Path::new("pages/about/page.rjx"), &pages_dir),
             "/about"
         );
         assert_eq!(
-            path_to_route_pure(Path::new("pages/users/profile.rhtmx"), &pages_dir),
+            path_to_route_pure(Path::new("pages/users/profile/page.rjx"), &pages_dir),
             "/users/profile"
         );
     }
