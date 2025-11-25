@@ -28,10 +28,10 @@ use rhtmx_router::{Router, Route};
 // Create router
 let mut router = Router::new();
 
-// Add routes (App Router convention: page.rjx files)
-router.add_route(Route::from_path("pages/page.rjx", "pages"));
-router.add_route(Route::from_path("pages/about/page.rjx", "pages"));
-router.add_route(Route::from_path("pages/users/[id]/page.rjx", "pages"));
+// Add routes (App Router convention: page.rsx files)
+router.add_route(Route::from_path("pages/page.rsx", "pages"));
+router.add_route(Route::from_path("pages/about/page.rsx", "pages"));
+router.add_route(Route::from_path("pages/users/[id]/page.rsx", "pages"));
 
 // Match routes
 let route_match = router.match_route("/users/123").unwrap();
@@ -56,21 +56,21 @@ rhtmx-router = "0.1.0"
 ### Static Routes
 
 ```
-pages/about/page.rjx       → /about
-pages/contact/page.rjx     → /contact
+pages/about/page.rsx       → /about
+pages/contact/page.rsx     → /contact
 ```
 
 ### Dynamic Parameters
 
 ```
-pages/users/[id]/page.rjx              → /users/:id
-pages/posts/[year]/[slug]/page.rjx     → /posts/:year/:slug
+pages/users/[id]/page.rsx              → /users/:id
+pages/posts/[year]/[slug]/page.rsx     → /posts/:year/:slug
 ```
 
 ### Optional Parameters
 
 ```
-pages/posts/[id?]/page.rjx             → /posts/:id?
+pages/posts/[id?]/page.rsx             → /posts/:id?
 
 Matches:
   /posts/123  → id = "123"
@@ -80,7 +80,7 @@ Matches:
 ### Catch-All Routes
 
 ```
-pages/docs/[...slug]/page.rjx          → /docs/*slug
+pages/docs/[...slug]/page.rsx          → /docs/*slug
 
 Matches:
   /docs/guide/intro  → slug = "guide/intro"
@@ -90,11 +90,11 @@ Matches:
 ### Root & Section Pages
 
 ```
-pages/page.rjx           → /
-pages/users/page.rjx     → /users
+pages/page.rsx           → /
+pages/users/page.rsx     → /users
 ```
 
-**Note:** Following Next.js App Router conventions, each route directory contains a `page.rjx` file.
+**Note:** Following Next.js App Router conventions, each route directory contains a `page.rsx` file.
 
 ---
 
@@ -107,11 +107,11 @@ Layouts are automatically inherited through the directory hierarchy.
 ```
 pages/
   ├── _layout.rhtml              # Root layout
-  ├── page.rjx                   # Home page (uses root layout)
+  ├── page.rsx                   # Home page (uses root layout)
   ├── dashboard/
   │   ├── _layout.rhtml          # Dashboard layout
-  │   ├── page.rjx            # Uses dashboard layout
-  │   └── settings/page.rjx         # Uses dashboard layout
+  │   ├── page.rsx            # Uses dashboard layout
+  │   └── settings/page.rsx         # Uses dashboard layout
   └── api/
       ├── _error.rhtml           # API error page
       └── users.rhtml            # Uses root layout (no API layout exists)
@@ -205,7 +205,7 @@ Static routes always match before dynamic routes at the same path depth.
 
 ```rust
 let router = Router::with_case_insensitive(true);
-router.add_route(Route::from_path("pages/about/page.rjx", "pages"));
+router.add_route(Route::from_path("pages/about/page.rsx", "pages"));
 
 // All match:
 router.match_route("/about");   // ✅
@@ -328,8 +328,8 @@ use rhtmx_router::{Router, Route};
 
 let mut router = Router::new();
 
-router.add_route(Route::from_path("pages/page.rjx", "pages"));
-router.add_route(Route::from_path("pages/about/page.rjx", "pages"));
+router.add_route(Route::from_path("pages/page.rsx", "pages"));
+router.add_route(Route::from_path("pages/about/page.rsx", "pages"));
 router.add_route(Route::from_path("pages/users/[id].rhtml", "pages"));
 router.add_route(Route::from_path("pages/docs/[...slug].rhtml", "pages"));
 
@@ -461,7 +461,7 @@ let route = Route::from_path("pages/dashboard/print.rhtml", "pages")
     .with_root_layout();
 
 // Use specific named layout
-let route = Route::from_path("pages/vendors/settings/page.rjx", "pages")
+let route = Route::from_path("pages/vendors/settings/page.rsx", "pages")
     .with_named_layout("vendor");
 
 // Use layout at specific pattern

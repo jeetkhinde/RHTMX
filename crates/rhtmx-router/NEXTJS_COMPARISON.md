@@ -15,7 +15,7 @@
 |---------|-------------------|--------------|--------|-------|
 | **Core Routing** |
 | File-system routing | ✅ | ✅ | ✅ **100%** | `pages/about.rhtml` → `/about` |
-| Index routes | ✅ | ✅ | ✅ **100%** | `pages/page.rjx` → `/` |
+| Index routes | ✅ | ✅ | ✅ **100%** | `pages/page.rsx` → `/` |
 | Nested routes | ✅ | ✅ | ✅ **100%** | `pages/blog/posts.rhtml` → `/blog/posts` |
 | Dynamic segments | ✅ `[slug]` | ✅ `[slug]` | ✅ **100%** | `/blog/[slug]` → `/blog/:slug` |
 | Multi-dynamic | ✅ | ✅ | ✅ **100%** | `/shop/[category]/[item]` |
@@ -108,8 +108,8 @@ export default function BlogPost({ params }: { params: { slug: string } }) {
 
 #### rhtmx-router
 ```rust
-// pages/blog/[slug]/page.rjx
-let route = Route::from_path("pages/blog/[slug]/page.rjx", "pages");
+// pages/blog/[slug]/page.rsx
+let route = Route::from_path("pages/blog/[slug]/page.rsx", "pages");
 assert_eq!(route.pattern, "/blog/:slug");
 assert_eq!(route.params, vec!["slug"]);
 
@@ -196,9 +196,9 @@ export default function Dashboard({
 
 #### rhtmx-router
 ```rust
-// pages/dashboard/@analytics/page.rjx
-// pages/dashboard/@team/page.rjx
-// pages/dashboard/page.rjx
+// pages/dashboard/@analytics/page.rsx
+// pages/dashboard/@team/page.rsx
+// pages/dashboard/page.rsx
 
 let slots = router.get_parallel_routes("/dashboard").unwrap();
 assert!(slots.contains_key("analytics"));
@@ -379,7 +379,7 @@ assert_eq!(m.route.get_meta("permission"), Some(&"admin.read".to_string()));
 **Example:**
 ```rust
 // rhtmx approach
-let route = Route::from_path("pages/blog/[slug]/page.rjx", "pages")
+let route = Route::from_path("pages/blog/[slug]/page.rsx", "pages")
     .with_meta("title", "Blog Post: {slug}")
     .with_meta("description", "Read our blog post");
 
@@ -451,7 +451,7 @@ export default function Page({ params }: { params: { slug: string } }) {
 ### rhtmx-router (Rust)
 ```rust
 // Compile-time type safety
-let route = Route::from_path("pages/blog/[slug]/page.rjx", "pages");
+let route = Route::from_path("pages/blog/[slug]/page.rsx", "pages");
 // ✅ Validated at compile time
 // ✅ Pattern syntax checked
 // ✅ Type-safe parameter extraction
@@ -534,12 +534,12 @@ app/
 ```
 pages/
 └── dashboard/
-    ├── @analytics/page.rjx
-    ├── @team/page.rjx
-    ├── @notifications/page.rjx
+    ├── @analytics/page.rsx
+    ├── @team/page.rsx
+    ├── @notifications/page.rsx
     ├── _layout.rhtml
     ├── loading.rhtml
-    └── page.rjx
+    └── page.rsx
 ```
 
 **Result:** ✅ Identical routing behavior
@@ -562,7 +562,7 @@ app/
 ```
 pages/
 ├── photos/
-│   ├── page.rjx                 # Grid
+│   ├── page.rsx                 # Grid
 │   ├── [id].rhtml                  # Full page
 │   └── (.)/[id].rhtml              # Modal
 └── _layout.rhtml
@@ -657,7 +657,7 @@ cargo test --test nextjs_parity_tests  # Integration (25)
 
 | Next.js | rhtmx-router | Notes |
 |---------|--------------|-------|
-| `page.tsx` | `page.rjx` or `page.rhtml` | Use `page.rjx` for cleaner paths |
+| `page.tsx` | `page.rsx` or `page.rhtml` | Use `page.rsx` for cleaner paths |
 | `layout.tsx` | `_layout.rhtml` | Underscore prefix |
 | `loading.tsx` | `loading.rhtml` | No prefix needed |
 | `error.tsx` | `_error.rhtml` | Underscore prefix |
@@ -676,7 +676,7 @@ cargo test --test nextjs_parity_tests  # Integration (25)
 ```
 Next.js app/                    rhtmx pages/
 ├── layout.tsx          →       ├── _layout.rhtml
-├── page.tsx            →       ├── page.rjx
+├── page.tsx            →       ├── page.rsx
 ├── loading.tsx         →       ├── loading.rhtml
 └── blog/                       └── blog/
     ├── [slug]/                     ├── [slug].rhtml

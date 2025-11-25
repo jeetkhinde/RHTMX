@@ -26,10 +26,10 @@ Layouts are discovered by walking up the directory hierarchy:
 ```
 pages/
 ├── _layout.rhtml              # Root layout (applies to all pages)
-├── page.rjx                # Uses root layout
+├── page.rsx                # Uses root layout
 └── dashboard/
     ├── _layout.rhtml          # Dashboard layout (overrides root)
-    ├── page.rjx            # Uses dashboard layout
+    ├── page.rsx            # Uses dashboard layout
     └── admin/
         ├── _layout.rhtml      # Admin layout (overrides dashboard)
         └── users.rhtml        # Uses admin layout
@@ -340,7 +340,7 @@ Intercepting routes use parentheses to indicate interception level:
 pages/
 ├── dashboard/
 │   ├── layout.rhtml
-│   ├── page.rjx
+│   ├── page.rsx
 │   └── (.) users/
 │       ├── modal.rhtml        # Shows as modal when /dashboard/users/modal
 │       └── details.rhtml

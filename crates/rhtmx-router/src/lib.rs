@@ -226,8 +226,8 @@ impl Route {
             .unwrap_or(file_path)
             .trim_start_matches('/');
 
-        // Support multiple extensions: .rjx (App Router), .rhtml (legacy)
-        let without_ext = if let Some(s) = relative.strip_suffix(".rjx") {
+        // Support multiple extensions: .rsx (App Router), .rhtml (legacy)
+        let without_ext = if let Some(s) = relative.strip_suffix(".rsx") {
             s
         } else if let Some(s) = relative.strip_suffix(".rhtml") {
             s

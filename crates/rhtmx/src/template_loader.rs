@@ -403,7 +403,7 @@ fn load_templates_from_dir_pure(
             path.extension().and_then(|s| s.to_str()),
             Some("rjx" | "rhtml" | "rhtmx")
         ) {
-            // Load template files (.rjx for App Router, .rhtml/.rhtmx for legacy)
+            // Load template files (.rsx for App Router, .rhtml/.rhtmx for legacy)
             let template_data = load_template_pure(&path, pages_dir)?;
             results.push(template_data);
         }
@@ -568,14 +568,14 @@ mod tests {
     fn test_path_to_route() {
         let loader = TemplateLoader::new("pages");
 
-        // Test cases (App Router conventions with page.rjx)
-        assert_eq!(loader.path_to_route(Path::new("pages/page.rjx")), "/");
+        // Test cases (App Router conventions with page.rsx)
+        assert_eq!(loader.path_to_route(Path::new("pages/page.rsx")), "/");
         assert_eq!(
-            loader.path_to_route(Path::new("pages/about/page.rjx")),
+            loader.path_to_route(Path::new("pages/about/page.rsx")),
             "/about"
         );
         assert_eq!(
-            loader.path_to_route(Path::new("pages/users/profile/page.rjx")),
+            loader.path_to_route(Path::new("pages/users/profile/page.rsx")),
             "/users/profile"
         );
     }
@@ -584,17 +584,17 @@ mod tests {
     fn test_path_to_route_pure() {
         let pages_dir = PathBuf::from("pages");
 
-        // Test cases (App Router conventions with page.rjx)
+        // Test cases (App Router conventions with page.rsx)
         assert_eq!(
-            path_to_route_pure(Path::new("pages/page.rjx"), &pages_dir),
+            path_to_route_pure(Path::new("pages/page.rsx"), &pages_dir),
             "/"
         );
         assert_eq!(
-            path_to_route_pure(Path::new("pages/about/page.rjx"), &pages_dir),
+            path_to_route_pure(Path::new("pages/about/page.rsx"), &pages_dir),
             "/about"
         );
         assert_eq!(
-            path_to_route_pure(Path::new("pages/users/profile/page.rjx"), &pages_dir),
+            path_to_route_pure(Path::new("pages/users/profile/page.rsx"), &pages_dir),
             "/users/profile"
         );
     }

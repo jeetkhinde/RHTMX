@@ -18,9 +18,9 @@ fn test_nextjs_basic_routing() {
 
     let mut router = Router::new();
 
-    router.add_route(Route::from_path("pages/page.rjx", "pages"));
-    router.add_route(Route::from_path("pages/about.rjx", "pages"));
-    router.add_route(Route::from_path("pages/blog/posts.rjx", "pages"));
+    router.add_route(Route::from_path("pages/page.rsx", "pages"));
+    router.add_route(Route::from_path("pages/about.rsx", "pages"));
+    router.add_route(Route::from_path("pages/blog/posts.rsx", "pages"));
 
     assert!(router.match_route("/").is_some());
     assert!(router.match_route("/about").is_some());
@@ -34,11 +34,11 @@ fn test_nextjs_dynamic_segments() {
 
     let mut router = Router::new();
 
-    let blog_route = Route::from_path("pages/blog/[slug].rjx", "pages");
+    let blog_route = Route::from_path("pages/blog/[slug].rsx", "pages");
     assert_eq!(blog_route.pattern, "/blog/:slug");
     assert_eq!(blog_route.params, vec!["slug"]);
 
-    let shop_route = Route::from_path("pages/shop/[category]/[item].rjx", "pages");
+    let shop_route = Route::from_path("pages/shop/[category]/[item].rsx", "pages");
     assert_eq!(shop_route.pattern, "/shop/:category/:item");
     assert_eq!(shop_route.params, vec!["category", "item"]);
 
@@ -56,9 +56,9 @@ fn test_nextjs_dynamic_segments() {
 #[test]
 fn test_nextjs_catch_all_segments() {
     // Next.js: app/shop/[...slug]/page.tsx → /shop/* (1+ segments required)
-    // rhtmx: pages/shop/[...slug].rjx → /shop/*slug
+    // rhtmx: pages/shop/[...slug].rsx → /shop/*slug
 
-    let route = Route::from_path("pages/shop/[...slug].rjx", "pages");
+    let route = Route::from_path("pages/shop/[...slug].rsx", "pages");
 
     assert_eq!(route.pattern, "/shop/*slug");
     assert!(route.has_catch_all);
@@ -81,9 +81,9 @@ fn test_nextjs_catch_all_segments() {
 #[test]
 fn test_nextjs_optional_catch_all_segments() {
     // Next.js: app/shop/[[...slug]]/page.tsx → /shop/* (0+ segments)
-    // rhtmx: pages/shop/[[...slug]].rjx → /shop/*slug?
+    // rhtmx: pages/shop/[[...slug]].rsx → /shop/*slug?
 
-    let route = Route::from_path("pages/shop/[[...slug]].rjx", "pages");
+    let route = Route::from_path("pages/shop/[[...slug]].rsx", "pages");
 
     assert_eq!(route.pattern, "/shop/*slug?");
     assert!(route.has_catch_all);
@@ -110,13 +110,13 @@ fn test_nextjs_route_groups() {
 
     let mut router = Router::new();
 
-    let marketing_route = Route::from_path("pages/(marketing)/about.rjx", "pages");
+    let marketing_route = Route::from_path("pages/(marketing)/about.rsx", "pages");
     assert_eq!(marketing_route.pattern, "/about");
-    assert_eq!(marketing_route.template_path, "pages/(marketing)/about.rjx");
+    assert_eq!(marketing_route.template_path, "pages/(marketing)/about.rsx");
 
-    let shop_route = Route::from_path("pages/(shop)/products.rjx", "pages");
+    let shop_route = Route::from_path("pages/(shop)/products.rsx", "pages");
     assert_eq!(shop_route.pattern, "/products");
-    assert_eq!(shop_route.template_path, "pages/(shop)/products.rjx");
+    assert_eq!(shop_route.template_path, "pages/(shop)/products.rsx");
 
     router.add_route(marketing_route);
     router.add_route(shop_route);
@@ -138,9 +138,9 @@ fn test_nextjs_layouts() {
 
     let mut router = Router::new();
 
-    router.add_route(Route::from_path("pages/_layout.rjx", "pages"));
-    router.add_route(Route::from_path("pages/dashboard/_layout.rjx", "pages"));
-    router.add_route(Route::from_path("pages/dashboard/settings/_layout.rjx", "pages"));
+    router.add_route(Route::from_path("pages/_layout.rsx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/_layout.rsx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/settings/_layout.rsx", "pages"));
 
     // Root layout
     assert!(router.get_layout("/").is_some());
@@ -160,10 +160,10 @@ fn test_nextjs_loading_ui() {
 
     let mut router = Router::new();
 
-    router.add_route(Route::from_path("pages/loading.rjx", "pages"));
-    router.add_route(Route::from_path("pages/dashboard/loading.rjx", "pages"));
+    router.add_route(Route::from_path("pages/loading.rsx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/loading.rsx", "pages"));
 
-    let loading = Route::from_path("pages/dashboard/loading.rjx", "pages");
+    let loading = Route::from_path("pages/dashboard/loading.rsx", "pages");
     assert!(loading.is_loading);
     assert_eq!(loading.pattern, "/dashboard");
 
@@ -179,10 +179,10 @@ fn test_nextjs_error_handling() {
 
     let mut router = Router::new();
 
-    router.add_route(Route::from_path("pages/_error.rjx", "pages"));
-    router.add_route(Route::from_path("pages/dashboard/_error.rjx", "pages"));
+    router.add_route(Route::from_path("pages/_error.rsx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/_error.rsx", "pages"));
 
-    let error = Route::from_path("pages/dashboard/_error.rjx", "pages");
+    let error = Route::from_path("pages/dashboard/_error.rsx", "pages");
     assert!(error.is_error_page);
     assert_eq!(error.pattern, "/dashboard");
 
@@ -198,10 +198,10 @@ fn test_nextjs_not_found() {
 
     let mut router = Router::new();
 
-    router.add_route(Route::from_path("pages/not-found.rjx", "pages"));
-    router.add_route(Route::from_path("pages/dashboard/not-found.rjx", "pages"));
+    router.add_route(Route::from_path("pages/not-found.rsx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/not-found.rsx", "pages"));
 
-    let not_found = Route::from_path("pages/dashboard/not-found.rjx", "pages");
+    let not_found = Route::from_path("pages/dashboard/not-found.rsx", "pages");
     assert!(not_found.is_not_found);
     assert_eq!(not_found.pattern, "/dashboard");
 
@@ -217,7 +217,7 @@ fn test_nextjs_templates() {
 
     let mut router = Router::new();
 
-    let template = Route::from_path("pages/dashboard/_template.rjx", "pages");
+    let template = Route::from_path("pages/dashboard/_template.rsx", "pages");
     assert!(template.is_template);
     assert_eq!(template.pattern, "/dashboard");
 
@@ -239,12 +239,12 @@ fn test_nextjs_parallel_routes() {
 
     let mut router = Router::new();
 
-    let analytics = Route::from_path("pages/dashboard/@analytics/page.rjx", "pages");
+    let analytics = Route::from_path("pages/dashboard/@analytics/page.rsx", "pages");
     assert!(analytics.is_parallel_route);
     assert_eq!(analytics.parallel_slot, Some("analytics".to_string()));
     assert_eq!(analytics.pattern, "/dashboard");
 
-    let team = Route::from_path("pages/dashboard/@team/page.rjx", "pages");
+    let team = Route::from_path("pages/dashboard/@team/page.rsx", "pages");
     assert!(team.is_parallel_route);
     assert_eq!(team.parallel_slot, Some("team".to_string()));
 
@@ -262,7 +262,7 @@ fn test_nextjs_parallel_routes_with_dynamic_params() {
     // Next.js: app/products/@reviews/[id]/page.tsx
     // Parallel slot with dynamic segment
 
-    let route = Route::from_path("pages/products/@reviews/[id].rjx", "pages");
+    let route = Route::from_path("pages/products/@reviews/[id].rsx", "pages");
 
     assert!(route.is_parallel_route);
     assert_eq!(route.parallel_slot, Some("reviews".to_string()));
@@ -279,7 +279,7 @@ fn test_nextjs_intercepting_same_level() {
     // Next.js: app/feed/(.)/photo/[id]/page.tsx
     // Intercept /photo/[id] at same level as feed
 
-    let route = Route::from_path("pages/feed/(.)/photo/[id].rjx", "pages");
+    let route = Route::from_path("pages/feed/(.)/photo/[id].rsx", "pages");
 
     assert!(route.is_intercepting);
     assert_eq!(route.intercept_level, Some(InterceptLevel::SameLevel));
@@ -292,7 +292,7 @@ fn test_nextjs_intercepting_one_up() {
     // Next.js: app/feed/(..)/photo/[id]/page.tsx
     // Intercept /photo/[id] one level up
 
-    let route = Route::from_path("pages/feed/(..)/photo/[id].rjx", "pages");
+    let route = Route::from_path("pages/feed/(..)/photo/[id].rsx", "pages");
 
     assert!(route.is_intercepting);
     assert_eq!(route.intercept_level, Some(InterceptLevel::OneLevelUp));
@@ -304,7 +304,7 @@ fn test_nextjs_intercepting_from_root() {
     // Next.js: app/feed/(...)/photo/[id]/page.tsx
     // Intercept /photo/[id] from root
 
-    let route = Route::from_path("pages/feed/(...)/photo/[id].rjx", "pages");
+    let route = Route::from_path("pages/feed/(...)/photo/[id].rsx", "pages");
 
     assert!(route.is_intercepting);
     assert_eq!(route.intercept_level, Some(InterceptLevel::FromRoot));
@@ -320,10 +320,10 @@ fn test_nextjs_modal_pattern() {
     let mut router = Router::new();
 
     // Standalone photo page
-    router.add_route(Route::from_path("pages/photo/[id].rjx", "pages"));
+    router.add_route(Route::from_path("pages/photo/[id].rsx", "pages"));
 
     // Intercepting route (modal)
-    router.add_route(Route::from_path("pages/feed/(...)/photo/[id].rjx", "pages"));
+    router.add_route(Route::from_path("pages/feed/(...)/photo/[id].rsx", "pages"));
 
     // Both routes exist
     assert!(router.match_route("/photo/123").is_some());
@@ -346,9 +346,9 @@ fn test_nextjs_route_priority() {
 
     let mut router = Router::new();
 
-    let static_route = Route::from_path("pages/blog/hello.rjx", "pages");
-    let dynamic_route = Route::from_path("pages/blog/[slug].rjx", "pages");
-    let catchall_route = Route::from_path("pages/blog/[...slug].rjx", "pages");
+    let static_route = Route::from_path("pages/blog/hello.rsx", "pages");
+    let dynamic_route = Route::from_path("pages/blog/[slug].rsx", "pages");
+    let catchall_route = Route::from_path("pages/blog/[...slug].rsx", "pages");
 
     // Check priorities
     assert!(static_route.priority < dynamic_route.priority);
@@ -360,15 +360,15 @@ fn test_nextjs_route_priority() {
 
     // Static should match first
     let m = router.match_route("/blog/hello").unwrap();
-    assert_eq!(m.route.template_path, "pages/blog/hello.rjx");
+    assert_eq!(m.route.template_path, "pages/blog/hello.rsx");
 
     // Dynamic should match
     let m = router.match_route("/blog/world").unwrap();
-    assert_eq!(m.route.template_path, "pages/blog/[slug].rjx");
+    assert_eq!(m.route.template_path, "pages/blog/[slug].rsx");
 
     // Catch-all should match multiple segments
     let m = router.match_route("/blog/foo/bar/baz").unwrap();
-    assert_eq!(m.route.template_path, "pages/blog/[...slug].rjx");
+    assert_eq!(m.route.template_path, "pages/blog/[...slug].rsx");
 }
 
 // ============================================================================
@@ -388,13 +388,13 @@ fn test_nextjs_complex_dashboard() {
 
     let mut router = Router::new();
 
-    router.add_route(Route::from_path("pages/dashboard/_layout.rjx", "pages"));
-    router.add_route(Route::from_path("pages/dashboard/loading.rjx", "pages"));
-    router.add_route(Route::from_path("pages/dashboard/_error.rjx", "pages"));
-    router.add_route(Route::from_path("pages/dashboard/@analytics/page.rjx", "pages"));
-    router.add_route(Route::from_path("pages/dashboard/@team/page.rjx", "pages"));
-    router.add_route(Route::from_path("pages/dashboard/@notifications/page.rjx", "pages"));
-    router.add_route(Route::from_path("pages/dashboard/page.rjx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/_layout.rsx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/loading.rsx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/_error.rsx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/@analytics/page.rsx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/@team/page.rsx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/@notifications/page.rsx", "pages"));
+    router.add_route(Route::from_path("pages/dashboard/page.rsx", "pages"));
 
     // Main page
     assert!(router.match_route("/dashboard").is_some());
@@ -428,13 +428,13 @@ fn test_nextjs_ecommerce_app() {
     let mut router = Router::new();
 
     // Shop group
-    router.add_route(Route::from_path("pages/(shop)/products.rjx", "pages"));
-    router.add_route(Route::from_path("pages/(shop)/products/[id].rjx", "pages"));
-    router.add_route(Route::from_path("pages/(shop)/cart.rjx", "pages"));
+    router.add_route(Route::from_path("pages/(shop)/products.rsx", "pages"));
+    router.add_route(Route::from_path("pages/(shop)/products/[id].rsx", "pages"));
+    router.add_route(Route::from_path("pages/(shop)/cart.rsx", "pages"));
 
     // Marketing group
-    router.add_route(Route::from_path("pages/(marketing)/about.rjx", "pages"));
-    router.add_route(Route::from_path("pages/(marketing)/contact.rjx", "pages"));
+    router.add_route(Route::from_path("pages/(marketing)/about.rsx", "pages"));
+    router.add_route(Route::from_path("pages/(marketing)/contact.rsx", "pages"));
 
     // All routes accessible without group names
     assert!(router.match_route("/products").is_some());
@@ -457,20 +457,20 @@ fn test_nextjs_photo_gallery_with_modals() {
     let mut router = Router::new();
 
     // Grid view
-    router.add_route(Route::from_path("pages/photos/page.rjx", "pages"));
+    router.add_route(Route::from_path("pages/photos/page.rsx", "pages"));
 
     // Full page view
-    router.add_route(Route::from_path("pages/photos/[id].rjx", "pages"));
+    router.add_route(Route::from_path("pages/photos/[id].rsx", "pages"));
 
     // Modal view (intercept)
-    router.add_route(Route::from_path("pages/photos/(.)/[id].rjx", "pages"));
+    router.add_route(Route::from_path("pages/photos/(.)/[id].rsx", "pages"));
 
     // Grid exists
     assert!(router.match_route("/photos").is_some());
 
     // Full page exists
     let full = router.match_route("/photos/123").unwrap();
-    assert_eq!(full.route.template_path, "pages/photos/[id].rjx");
+    assert_eq!(full.route.template_path, "pages/photos/[id].rsx");
 
     // Modal interceptor exists
     let intercept = router.get_intercepting_route("/photos/:id").unwrap();
@@ -488,7 +488,7 @@ fn test_metadata_and_constraints() {
 
     let mut router = Router::new();
 
-    let route = Route::from_path("pages/users/[id:int].rjx", "pages")
+    let route = Route::from_path("pages/users/[id:int].rsx", "pages")
         .with_name("user_detail")
         .with_meta("permission", "user.read")
         .with_meta("cache", "60");
@@ -531,7 +531,7 @@ fn test_route_aliases() {
 
     let mut router = Router::new();
 
-    let route = Route::from_path("pages/about.rjx", "pages")
+    let route = Route::from_path("pages/about.rsx", "pages")
         .with_aliases(["/about-us", "/company", "/acerca-de"]);
 
     router.add_route(route);
@@ -554,7 +554,7 @@ fn test_route_lookup_performance() {
 
     // Add 1000 routes
     for i in 0..1000 {
-        router.add_route(Route::from_path(&format!("pages/route{}.rjx", i), "pages"));
+        router.add_route(Route::from_path(&format!("pages/route{}.rsx", i), "pages"));
     }
 
     // Match should be fast (sorted Vec, binary search-like behavior)
@@ -571,7 +571,7 @@ fn test_route_lookup_performance() {
 #[test]
 fn test_functional_composition() {
     // Demonstrate functional programming patterns
-    let route = Route::from_path("pages/users/[id].rjx", "pages")
+    let route = Route::from_path("pages/users/[id].rsx", "pages")
         .with_name("user_detail")
         .with_meta("permission", "user.read")
         .with_meta("cache", "60")
