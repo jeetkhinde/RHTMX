@@ -15,21 +15,21 @@
 |---------|-------------------|--------------|--------|-------|
 | **Core Routing** |
 | File-system routing | ✅ | ✅ | ✅ **100%** | `pages/about.rhtml` → `/about` |
-| Index routes | ✅ | ✅ | ✅ **100%** | `pages/index.rhtml` → `/` |
+| Index routes | ✅ | ✅ | ✅ **100%** | `pages/page.rsx` → `/` |
 | Nested routes | ✅ | ✅ | ✅ **100%** | `pages/blog/posts.rhtml` → `/blog/posts` |
 | Dynamic segments | ✅ `[slug]` | ✅ `[slug]` | ✅ **100%** | `/blog/[slug]` → `/blog/:slug` |
 | Multi-dynamic | ✅ | ✅ | ✅ **100%** | `/shop/[category]/[item]` |
 | Catch-all routes | ✅ `[...slug]` | ✅ `[...slug]` | ✅ **100%** | Requires 1+ segments |
 | Optional catch-all | ✅ `[[...slug]]` | ✅ `[[...slug]]` | ✅ **100%** | Matches 0+ segments |
 | **Layouts & UI** |
-| Root layout | ✅ `layout.tsx` | ✅ `_layout.rhtml` | ✅ **100%** | Persists across navigation |
+| Root layout | ✅ `layout.tsx` | ✅ `_layout.rsx` | ✅ **100%** | Persists across navigation |
 | Nested layouts | ✅ | ✅ | ✅ **100%** | Hierarchical layout resolution |
 | Named layouts | ❌ | ✅ `_layout.name.rhtml` | ⭐ **Bonus** | rhtmx extension |
 | Layout options | ❌ | ✅ | ⭐ **Bonus** | None, Root, Named, Pattern |
-| Loading UI | ✅ `loading.tsx` | ✅ `loading.rhtml` | ✅ **100%** | Automatic loading states |
-| Error boundaries | ✅ `error.tsx` | ✅ `_error.rhtml` | ✅ **100%** | Hierarchical error pages |
-| Not Found | ✅ `not-found.tsx` | ✅ `not-found.rhtml` | ✅ **100%** | Section-specific 404s |
-| Templates | ✅ `template.tsx` | ✅ `_template.rhtml` | ✅ **100%** | Re-mount on navigation |
+| Loading UI | ✅ `loading.tsx` | ✅ `loading.rsx` | ✅ **100%** | Automatic loading states |
+| Error boundaries | ✅ `error.tsx` | ✅ `_error.rsx` | ✅ **100%** | Hierarchical error pages |
+| Not Found | ✅ `not-found.tsx` | ✅ `not-found.rsx` | ✅ **100%** | Section-specific 404s |
+| Templates | ✅ `template.tsx` | ✅ `_template.rsx` | ✅ **100%** | Re-mount on navigation |
 | **Advanced Routing** |
 | Route groups | ✅ `(folder)` | ✅ `(folder)` | ✅ **100%** | Organizational only |
 | Parallel routes | ✅ `@slot` | ✅ `@slot` | ✅ **100%** | Multiple slots per route |
@@ -108,8 +108,8 @@ export default function BlogPost({ params }: { params: { slug: string } }) {
 
 #### rhtmx-router
 ```rust
-// pages/blog/[slug].rhtml
-let route = Route::from_path("pages/blog/[slug].rhtml", "pages");
+// pages/blog/[slug]/page.rsx
+let route = Route::from_path("pages/blog/[slug]/page.rsx", "pages");
 assert_eq!(route.pattern, "/blog/:slug");
 assert_eq!(route.params, vec!["slug"]);
 
@@ -196,9 +196,9 @@ export default function Dashboard({
 
 #### rhtmx-router
 ```rust
-// pages/dashboard/@analytics/index.rhtml
-// pages/dashboard/@team/index.rhtml
-// pages/dashboard/index.rhtml
+// pages/dashboard/@analytics/page.rsx
+// pages/dashboard/@team/page.rsx
+// pages/dashboard/page.rsx
 
 let slots = router.get_parallel_routes("/dashboard").unwrap();
 assert!(slots.contains_key("analytics"));
@@ -253,11 +253,11 @@ assert_eq!(route.intercept_target, Some("photo/[id]".to_string()));
 
 #### rhtmx-router
 ```rust
-// pages/_layout.rhtml
-// pages/dashboard/_layout.rhtml
-// pages/dashboard/loading.rhtml
-// pages/dashboard/_error.rhtml
-// pages/dashboard/not-found.rhtml
+// pages/_layout.rsx
+// pages/dashboard/_layout.rsx
+// pages/dashboard/loading.rsx
+// pages/dashboard/_error.rsx
+// pages/dashboard/not-found.rsx
 
 assert!(router.get_layout("/dashboard").is_some());
 assert!(router.get_loading_page("/dashboard").is_some());
@@ -379,7 +379,7 @@ assert_eq!(m.route.get_meta("permission"), Some(&"admin.read".to_string()));
 **Example:**
 ```rust
 // rhtmx approach
-let route = Route::from_path("pages/blog/[slug].rhtml", "pages")
+let route = Route::from_path("pages/blog/[slug]/page.rsx", "pages")
     .with_meta("title", "Blog Post: {slug}")
     .with_meta("description", "Read our blog post");
 
@@ -399,7 +399,7 @@ let route = Route::from_path("pages/blog/[slug].rhtml", "pages")
 ### 3. Streaming & Suspense
 **Status:** ⚠️ Not applicable
 **Reason:** React-specific features
-**Alternative:** Use loading.rhtml for loading states, frameworks can implement streaming
+**Alternative:** Use loading.rsx for loading states, frameworks can implement streaming
 
 ---
 
@@ -451,7 +451,7 @@ export default function Page({ params }: { params: { slug: string } }) {
 ### rhtmx-router (Rust)
 ```rust
 // Compile-time type safety
-let route = Route::from_path("pages/blog/[slug].rhtml", "pages");
+let route = Route::from_path("pages/blog/[slug]/page.rsx", "pages");
 // ✅ Validated at compile time
 // ✅ Pattern syntax checked
 // ✅ Type-safe parameter extraction
@@ -509,7 +509,7 @@ pages/
 ├── (marketing)/
 │   ├── about.rhtml
 │   └── contact.rhtml
-└── _layout.rhtml
+└── _layout.rsx
 ```
 
 **Result:** ✅ Identical routing behavior
@@ -534,12 +534,12 @@ app/
 ```
 pages/
 └── dashboard/
-    ├── @analytics/index.rhtml
-    ├── @team/index.rhtml
-    ├── @notifications/index.rhtml
-    ├── _layout.rhtml
-    ├── loading.rhtml
-    └── index.rhtml
+    ├── @analytics/page.rsx
+    ├── @team/page.rsx
+    ├── @notifications/page.rsx
+    ├── _layout.rsx
+    ├── loading.rsx
+    └── page.rsx
 ```
 
 **Result:** ✅ Identical routing behavior
@@ -562,10 +562,10 @@ app/
 ```
 pages/
 ├── photos/
-│   ├── index.rhtml                 # Grid
+│   ├── page.rsx                 # Grid
 │   ├── [id].rhtml                  # Full page
 │   └── (.)/[id].rhtml              # Modal
-└── _layout.rhtml
+└── _layout.rsx
 ```
 
 **Result:** ✅ Identical routing behavior
@@ -657,12 +657,12 @@ cargo test --test nextjs_parity_tests  # Integration (25)
 
 | Next.js | rhtmx-router | Notes |
 |---------|--------------|-------|
-| `page.tsx` | `index.rhtml` or `page.rhtml` | Use `index.rhtml` for cleaner paths |
-| `layout.tsx` | `_layout.rhtml` | Underscore prefix |
-| `loading.tsx` | `loading.rhtml` | No prefix needed |
-| `error.tsx` | `_error.rhtml` | Underscore prefix |
-| `not-found.tsx` | `not-found.rhtml` | No prefix needed |
-| `template.tsx` | `_template.rhtml` | Underscore prefix |
+| `page.tsx` | `page.rsx` or `page.rhtml` | Use `page.rsx` for cleaner paths |
+| `layout.tsx` | `_layout.rsx` | Underscore prefix |
+| `loading.tsx` | `loading.rsx` | No prefix needed |
+| `error.tsx` | `_error.rsx` | Underscore prefix |
+| `not-found.tsx` | `not-found.rsx` | No prefix needed |
+| `template.tsx` | `_template.rsx` | Underscore prefix |
 | `[slug]` | `[slug]` | Identical |
 | `[...slug]` | `[...slug]` | Identical |
 | `[[...slug]]` | `[[...slug]]` | Identical |
@@ -675,9 +675,9 @@ cargo test --test nextjs_parity_tests  # Integration (25)
 **Example Migration:**
 ```
 Next.js app/                    rhtmx pages/
-├── layout.tsx          →       ├── _layout.rhtml
-├── page.tsx            →       ├── index.rhtml
-├── loading.tsx         →       ├── loading.rhtml
+├── layout.tsx          →       ├── _layout.rsx
+├── page.tsx            →       ├── page.rsx
+├── loading.tsx         →       ├── loading.rsx
 └── blog/                       └── blog/
     ├── [slug]/                     ├── [slug].rhtml
     │   └── page.tsx                └── [slug]/

@@ -36,8 +36,8 @@
 //! use rhtmx_router::{Router, Route};
 //!
 //! let mut router = Router::new();
-//! router.add_route(Route::from_path("pages/about.rhtml", "pages"));
-//! router.add_route(Route::from_path("pages/users/[id].rhtml", "pages"));
+//! router.add_route(Route::from_path("pages/about.rsx", "pages"));
+//! router.add_route(Route::from_path("pages/users/[id].rsx", "pages"));
 //!
 //! let route_match = router.match_route("/users/123").unwrap();
 //! assert_eq!(route_match.params.get("id"), Some(&"123".to_string()));
@@ -199,12 +199,12 @@ impl RouteMatch {
 impl Route {
     /// Creates a route from a file system path
     ///
-    /// Converts file paths like `pages/users/[id].rhtml` into route patterns like `/users/:id`
+    /// Converts file paths like `pages/users/[id]/page.rsx` into route patterns like `/users/:id`
     ///
     /// Detects layout options from file naming conventions:
     /// - `_nolayout` marker file → LayoutOption::None
-    /// - `_layout.root.rhtml` → LayoutOption::Root (named "root")
-    /// - `_layout.admin.rhtml` → Named layout "admin"
+    /// - `_layout.root.rsx` → LayoutOption::Root (named "root")
+    /// - `_layout.admin.rsx` → Named layout "admin"
     ///
     /// # Arguments
     ///
@@ -216,7 +216,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/users/[id].rhtml", "pages");
+    /// let route = Route::from_path("pages/users/[id].rsx", "pages");
     /// assert_eq!(route.pattern, "/users/:id");
     /// assert_eq!(route.params, vec!["id"]);
     /// ```
@@ -226,7 +226,8 @@ impl Route {
             .unwrap_or(file_path)
             .trim_start_matches('/');
 
-        let without_ext = relative.strip_suffix(".rhtml").unwrap_or(relative);
+        // Strip .rsx extension (App Router convention)
+        let without_ext = relative.strip_suffix(".rsx").unwrap_or(relative);
 
         // Extract filename to check for special files
         let filename = without_ext.split('/').last().unwrap_or("");
@@ -246,7 +247,7 @@ impl Route {
         let (is_intercepting, intercept_level, intercept_target) =
             route::detect_intercepting_route(without_ext);
 
-        // Detect named layouts: _layout.name.rhtml
+        // Detect named layouts: _layout.name.rsx
         let layout_name = if is_layout {
             route::extract_layout_name(filename)
         } else {
@@ -496,7 +497,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/users/profile.rhtml", "pages");
+    /// let route = Route::from_path("pages/users/profile.rsx", "pages");
     /// assert_eq!(route.layout_pattern(), Some("/users".to_string()));
     /// ```
     pub fn layout_pattern(&self) -> Option<String> {
@@ -528,7 +529,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::{Route, LayoutOption};
     ///
-    /// let route = Route::from_path("pages/print.rhtml", "pages")
+    /// let route = Route::from_path("pages/print.rsx", "pages")
     ///     .with_layout_option(LayoutOption::None);
     /// ```
     pub fn with_layout_option(mut self, option: LayoutOption) -> Self {
@@ -543,7 +544,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/login.rhtml", "pages")
+    /// let route = Route::from_path("pages/login.rsx", "pages")
     ///     .with_no_layout();
     /// ```
     pub fn with_no_layout(self) -> Self {
@@ -557,7 +558,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/dashboard/print.rhtml", "pages")
+    /// let route = Route::from_path("pages/dashboard/print.rsx", "pages")
     ///     .with_root_layout();
     /// ```
     pub fn with_root_layout(self) -> Self {
@@ -571,7 +572,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/dashboard/settings.rhtml", "pages")
+    /// let route = Route::from_path("pages/dashboard/settings.rsx", "pages")
     ///     .with_named_layout("admin");
     /// ```
     pub fn with_named_layout(self, name: impl Into<String>) -> Self {
@@ -585,7 +586,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/dashboard/admin/users.rhtml", "pages")
+    /// let route = Route::from_path("pages/dashboard/admin/users.rsx", "pages")
     ///     .with_layout_pattern("/dashboard");
     /// ```
     pub fn with_layout_pattern(self, pattern: impl Into<String>) -> Self {
@@ -608,7 +609,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/users/[id].rhtml", "pages")
+    /// let route = Route::from_path("pages/users/[id].rsx", "pages")
     ///     .with_meta("title", "User Profile")
     ///     .with_meta("permission", "users.read");
     /// ```
@@ -629,7 +630,7 @@ impl Route {
     /// meta.insert("title".to_string(), "Admin Dashboard".to_string());
     /// meta.insert("permission".to_string(), "admin.read".to_string());
     ///
-    /// let route = Route::from_path("pages/admin/dashboard.rhtml", "pages")
+    /// let route = Route::from_path("pages/admin/dashboard.rsx", "pages")
     ///     .with_metadata(meta);
     /// ```
     pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {
@@ -644,7 +645,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/users/[id].rhtml", "pages")
+    /// let route = Route::from_path("pages/users/[id].rsx", "pages")
     ///     .with_meta("title", "User Profile");
     ///
     /// assert_eq!(route.get_meta("title"), Some(&"User Profile".to_string()));
@@ -661,7 +662,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/admin/users.rhtml", "pages")
+    /// let route = Route::from_path("pages/admin/users.rsx", "pages")
     ///     .with_meta("permission", "admin.read");
     ///
     /// assert!(route.has_meta("permission"));
@@ -690,7 +691,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/about.rhtml", "pages")
+    /// let route = Route::from_path("pages/about.rsx", "pages")
     ///     .with_alias("/about-us")
     ///     .with_alias("/company");
     ///
@@ -708,7 +709,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/about.rhtml", "pages")
+    /// let route = Route::from_path("pages/about.rsx", "pages")
     ///     .with_aliases(["/about-us", "/company", "/über"]);
     ///
     /// assert_eq!(route.aliases.len(), 3);
@@ -732,7 +733,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/about.rhtml", "pages")
+    /// let route = Route::from_path("pages/about.rsx", "pages")
     ///     .with_aliases(["/about-us", "/company"]);
     ///
     /// assert!(route.matches_any("/about").is_some());
@@ -790,7 +791,7 @@ impl Route {
     /// ```
     /// use rhtmx_router::Route;
     ///
-    /// let route = Route::from_path("pages/users/[id].rhtml", "pages")
+    /// let route = Route::from_path("pages/users/[id].rsx", "pages")
     ///     .with_name("user.profile");
     ///
     /// assert_eq!(route.name, Some("user.profile".to_string()));
@@ -813,7 +814,7 @@ impl Route {
     /// use rhtmx_router::Route;
     /// use std::collections::HashMap;
     ///
-    /// let route = Route::from_path("pages/users/[id].rhtml", "pages");
+    /// let route = Route::from_path("pages/users/[id].rsx", "pages");
     ///
     /// let mut params = HashMap::new();
     /// params.insert("id".to_string(), "123".to_string());
@@ -1150,8 +1151,8 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let router = Router::new()
-    ///     .with_route(Route::from_path("pages/about.rhtml", "pages"))
-    ///     .with_route(Route::from_path("pages/users/[id].rhtml", "pages"));
+    ///     .with_route(Route::from_path("pages/about.rsx", "pages"))
+    ///     .with_route(Route::from_path("pages/users/[id].rsx", "pages"));
     /// ```
     pub fn with_route(mut self, route: Route) -> Self {
         self.add_route_internal(&route);
@@ -1166,8 +1167,8 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let routes = vec![
-    ///     Route::from_path("pages/about.rhtml", "pages"),
-    ///     Route::from_path("pages/users/[id].rhtml", "pages"),
+    ///     Route::from_path("pages/about.rsx", "pages"),
+    ///     Route::from_path("pages/users/[id].rsx", "pages"),
     /// ];
     ///
     /// let router = Router::new().with_routes(routes);
@@ -1192,7 +1193,7 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let router = Router::new()
-    ///     .with_route(Route::from_path("pages/about.rhtml", "pages"))
+    ///     .with_route(Route::from_path("pages/about.rsx", "pages"))
     ///     .without_route("/about");
     /// ```
     pub fn without_route(mut self, pattern: &str) -> Self {
@@ -1266,11 +1267,11 @@ impl Router {
     ///
     /// // Old style (deprecated)
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/about.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/about.rsx", "pages"));
     ///
     /// // New style (functional)
     /// let router = Router::new()
-    ///     .with_route(Route::from_path("pages/about.rhtml", "pages"));
+    ///     .with_route(Route::from_path("pages/about.rsx", "pages"));
     /// ```
     #[deprecated(since = "0.2.0", note = "Use with_route() for functional programming style")]
     pub fn add_route(&mut self, route: Route) {
@@ -1346,12 +1347,12 @@ impl Router {
     ///
     /// // Old style (deprecated)
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/about.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/about.rsx", "pages"));
     /// router.remove_route("/about");
     ///
     /// // New style (functional)
     /// let router = Router::new()
-    ///     .with_route(Route::from_path("pages/about.rhtml", "pages"))
+    ///     .with_route(Route::from_path("pages/about.rsx", "pages"))
     ///     .without_route("/about");
     /// ```
     #[deprecated(since = "0.2.0", note = "Use without_route() for functional programming style")]
@@ -1456,7 +1457,7 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/users/[id].rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/users/[id].rsx", "pages"));
     ///
     /// let route_match = router.match_route("/users/123").unwrap();
     /// assert_eq!(route_match.params.get("id"), Some(&"123".to_string()));
@@ -1516,8 +1517,8 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/_layout.rhtml", "pages"));
-    /// router.add_route(Route::from_path("pages/dashboard/_layout.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/_layout.rsx", "pages"));
+    /// router.add_route(Route::from_path("pages/dashboard/_layout.rsx", "pages"));
     ///
     /// // Works with any path format
     /// let layout = router.get_layout("/dashboard/settings").unwrap();
@@ -1551,11 +1552,11 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/_layout.rhtml", "pages"));
-    /// router.add_route(Route::from_path("pages/dashboard/_layout.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/_layout.rsx", "pages"));
+    /// router.add_route(Route::from_path("pages/dashboard/_layout.rsx", "pages"));
     ///
     /// // Use root layout, skip dashboard
-    /// let route = Route::from_path("pages/dashboard/print.rhtml", "pages")
+    /// let route = Route::from_path("pages/dashboard/print.rsx", "pages")
     ///     .with_root_layout();
     /// router.add_route(route.clone());
     ///
@@ -1620,7 +1621,7 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/_layout.admin.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/_layout.admin.rsx", "pages"));
     ///
     /// let layout = router.get_layout_by_name("admin").unwrap();
     /// assert_eq!(layout.layout_name, Some("admin".to_string()));
@@ -1653,8 +1654,8 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/_error.rhtml", "pages"));
-    /// router.add_route(Route::from_path("pages/api/_error.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/_error.rsx", "pages"));
+    /// router.add_route(Route::from_path("pages/api/_error.rsx", "pages"));
     ///
     /// // Works with clean paths
     /// let error_page = router.get_error_page("/api/users").unwrap();
@@ -1687,7 +1688,7 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/dashboard/loading.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/dashboard/loading.rsx", "pages"));
     ///
     /// let loading = router.get_loading_page("/dashboard/users").unwrap();
     /// assert_eq!(loading.pattern, "/dashboard");
@@ -1709,7 +1710,7 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/_template.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/_template.rsx", "pages"));
     ///
     /// let template = router.get_template("/about").unwrap();
     /// assert_eq!(template.pattern, "/");
@@ -1731,7 +1732,7 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/api/not-found.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/api/not-found.rsx", "pages"));
     ///
     /// let not_found = router.get_not_found_page("/api/unknown").unwrap();
     /// assert_eq!(not_found.pattern, "/api");
@@ -1759,8 +1760,8 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/dashboard/@analytics/page.rhtml", "pages"));
-    /// router.add_route(Route::from_path("pages/dashboard/@team/page.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/dashboard/@analytics/page.rsx", "pages"));
+    /// router.add_route(Route::from_path("pages/dashboard/@team/page.rsx", "pages"));
     ///
     /// let slots = router.get_parallel_routes("/dashboard").unwrap();
     /// assert_eq!(slots.len(), 2);
@@ -1784,7 +1785,7 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/dashboard/@analytics/page.rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/dashboard/@analytics/page.rsx", "pages"));
     ///
     /// let route = router.get_parallel_route("/dashboard", "analytics").unwrap();
     /// assert_eq!(route.parallel_slot, Some("analytics".to_string()));
@@ -1803,7 +1804,7 @@ impl Router {
     /// use rhtmx_router::{Router, Route};
     ///
     /// let mut router = Router::new();
-    /// router.add_route(Route::from_path("pages/feed/(.)photo/[id].rhtml", "pages"));
+    /// router.add_route(Route::from_path("pages/feed/(.)photo/[id].rsx", "pages"));
     ///
     /// let route = router.get_intercepting_route("/feed/photo/:id");
     /// // Intercepts /photo/[id] when navigating from /feed
@@ -1847,7 +1848,7 @@ impl Router {
     /// let mut router = Router::new();
     ///
     /// router.add_route(
-    ///     Route::from_path("pages/users/[id].rhtml", "pages")
+    ///     Route::from_path("pages/users/[id].rsx", "pages")
     ///         .with_name("user.profile")
     /// );
     ///
@@ -1876,7 +1877,7 @@ impl Router {
     /// let mut router = Router::new();
     ///
     /// router.add_route(
-    ///     Route::from_path("pages/posts/[year]/[slug].rhtml", "pages")
+    ///     Route::from_path("pages/posts/[year]/[slug].rsx", "pages")
     ///         .with_name("post.show")
     /// );
     ///
@@ -1907,7 +1908,7 @@ impl Router {
     /// let mut router = Router::new();
     ///
     /// router.add_route(
-    ///     Route::from_path("pages/about.rhtml", "pages")
+    ///     Route::from_path("pages/about.rsx", "pages")
     ///         .with_name("about")
     /// );
     ///

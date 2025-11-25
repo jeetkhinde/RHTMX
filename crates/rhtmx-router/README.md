@@ -1,6 +1,6 @@
 # RHTMX Router
 
-A high-performance, zero-dependency file-system-based routing library for Rust with functional programming optimizations.
+A high-performance, zero-dependency file-system-based routing library for Rust with Next.js App Router conventions and functional programming optimizations.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
@@ -28,10 +28,10 @@ use rhtmx_router::{Router, Route};
 // Create router
 let mut router = Router::new();
 
-// Add routes
-router.add_route(Route::from_path("pages/index.rhtml", "pages"));
-router.add_route(Route::from_path("pages/about.rhtml", "pages"));
-router.add_route(Route::from_path("pages/users/[id].rhtml", "pages"));
+// Add routes (App Router convention: page.rsx files)
+router.add_route(Route::from_path("pages/page.rsx", "pages"));
+router.add_route(Route::from_path("pages/about/page.rsx", "pages"));
+router.add_route(Route::from_path("pages/users/[id]/page.rsx", "pages"));
 
 // Match routes
 let route_match = router.match_route("/users/123").unwrap();
@@ -56,21 +56,21 @@ rhtmx-router = "0.1.0"
 ### Static Routes
 
 ```
-pages/about.rhtml       → /about
-pages/contact.rhtml     → /contact
+pages/about/page.rsx       → /about
+pages/contact/page.rsx     → /contact
 ```
 
 ### Dynamic Parameters
 
 ```
-pages/users/[id].rhtml              → /users/:id
-pages/posts/[year]/[slug].rhtml     → /posts/:year/:slug
+pages/users/[id]/page.rsx              → /users/:id
+pages/posts/[year]/[slug]/page.rsx     → /posts/:year/:slug
 ```
 
 ### Optional Parameters
 
 ```
-pages/posts/[id?].rhtml             → /posts/:id?
+pages/posts/[id?]/page.rsx             → /posts/:id?
 
 Matches:
   /posts/123  → id = "123"
@@ -80,20 +80,21 @@ Matches:
 ### Catch-All Routes
 
 ```
-pages/docs/[...slug].rhtml          → /docs/*slug
+pages/docs/[...slug]/page.rsx          → /docs/*slug
 
 Matches:
   /docs/guide/intro  → slug = "guide/intro"
   /docs/api         → slug = "api"
-  /docs             → slug = ""
 ```
 
-### Index Routes
+### Root & Section Pages
 
 ```
-pages/index.rhtml           → /
-pages/users/index.rhtml     → /users
+pages/page.rsx           → /
+pages/users/page.rsx     → /users
 ```
+
+**Note:** Following Next.js App Router conventions, each route directory contains a `page.rsx` file.
 
 ---
 
@@ -105,14 +106,14 @@ Layouts are automatically inherited through the directory hierarchy.
 
 ```
 pages/
-  ├── _layout.rhtml              # Root layout
-  ├── index.rhtml                # Uses root layout
+  ├── _layout.rsx              # Root layout
+  ├── page.rsx                   # Home page (uses root layout)
   ├── dashboard/
-  │   ├── _layout.rhtml          # Dashboard layout
-  │   ├── index.rhtml            # Uses dashboard layout
-  │   └── settings.rhtml         # Uses dashboard layout
+  │   ├── _layout.rsx          # Dashboard layout
+  │   ├── page.rsx            # Uses dashboard layout
+  │   └── settings/page.rsx         # Uses dashboard layout
   └── api/
-      ├── _error.rhtml           # API error page
+      ├── _error.rsx           # API error page
       └── users.rhtml            # Uses root layout (no API layout exists)
 ```
 
@@ -140,9 +141,9 @@ Error pages work identically to layouts:
 
 ```
 pages/
-  ├── _error.rhtml           # Root error page
+  ├── _error.rsx           # Root error page
   └── api/
-      ├── _error.rhtml       # API-specific error page
+      ├── _error.rsx       # API-specific error page
       └── users.rhtml
 ```
 
@@ -204,7 +205,7 @@ Static routes always match before dynamic routes at the same path depth.
 
 ```rust
 let router = Router::with_case_insensitive(true);
-router.add_route(Route::from_path("pages/about.rhtml", "pages"));
+router.add_route(Route::from_path("pages/about/page.rsx", "pages"));
 
 // All match:
 router.match_route("/about");   // ✅
@@ -327,8 +328,8 @@ use rhtmx_router::{Router, Route};
 
 let mut router = Router::new();
 
-router.add_route(Route::from_path("pages/index.rhtml", "pages"));
-router.add_route(Route::from_path("pages/about.rhtml", "pages"));
+router.add_route(Route::from_path("pages/page.rsx", "pages"));
+router.add_route(Route::from_path("pages/about/page.rsx", "pages"));
 router.add_route(Route::from_path("pages/users/[id].rhtml", "pages"));
 router.add_route(Route::from_path("pages/docs/[...slug].rhtml", "pages"));
 
@@ -348,9 +349,9 @@ assert_eq!(m.params.get("slug"), Some(&"api/reference".to_string()));
 ```rust
 let mut router = Router::new();
 
-router.add_route(Route::from_path("pages/_layout.rhtml", "pages"));
-router.add_route(Route::from_path("pages/dashboard/_layout.rhtml", "pages"));
-router.add_route(Route::from_path("pages/dashboard/admin/_layout.rhtml", "pages"));
+router.add_route(Route::from_path("pages/_layout.rsx", "pages"));
+router.add_route(Route::from_path("pages/dashboard/_layout.rsx", "pages"));
+router.add_route(Route::from_path("pages/dashboard/admin/_layout.rsx", "pages"));
 
 // Get layout for deep path
 let layout = router.get_layout("/dashboard/admin/settings").unwrap();
@@ -366,8 +367,8 @@ assert_eq!(layout.pattern, "/dashboard/admin");  // No /dashboard/admin/users la
 ```rust
 let mut router = Router::new();
 
-router.add_route(Route::from_path("pages/_error.rhtml", "pages"));
-router.add_route(Route::from_path("pages/api/_error.rhtml", "pages"));
+router.add_route(Route::from_path("pages/_error.rsx", "pages"));
+router.add_route(Route::from_path("pages/api/_error.rsx", "pages"));
 
 let error = router.get_error_page("/api/users").unwrap();
 assert_eq!(error.pattern, "/api");
@@ -380,7 +381,7 @@ assert_eq!(error.pattern, "/");
 
 ```rust
 let mut router = Router::new();
-router.add_route(Route::from_path("pages/dashboard/_layout.rhtml", "pages"));
+router.add_route(Route::from_path("pages/dashboard/_layout.rsx", "pages"));
 
 // All work correctly:
 assert!(router.get_layout("/dashboard/settings").is_some());
@@ -460,7 +461,7 @@ let route = Route::from_path("pages/dashboard/print.rhtml", "pages")
     .with_root_layout();
 
 // Use specific named layout
-let route = Route::from_path("pages/vendors/settings.rhtml", "pages")
+let route = Route::from_path("pages/vendors/settings/page.rsx", "pages")
     .with_named_layout("vendor");
 
 // Use layout at specific pattern
@@ -491,18 +492,14 @@ For complex layout scenarios, see the **[Advanced Layouts Guide](ADVANCED_LAYOUT
 
 ## Known Limitations
 
-See [CRITICAL_MISSING_FEATURES.md](CRITICAL_MISSING_FEATURES.md) for details.
+**Framework-Level Features** (should be implemented in RHTMX framework):
+- Middleware/guards - Auth, rate limiting, logging
+- Route handlers - HTTP method-specific handlers
 
-**Resolved in v0.1.0+:**
-- ✅ Way to skip parent layouts (via `LayoutOption::Root`)
-- ✅ Explicit "no layout" option (via `with_no_layout()`)
-- ✅ Layout composition control (via builder methods)
-
-**Minor:**
-- No middleware/guards
-- No regex patterns
-- No named routes
+**Router-Specific:**
 - O(n) route matching (consider trie for 1000+ routes)
+
+**Note:** Most features are implemented! Named routes, layout control, parameter constraints, aliases, and redirects are all available. See [NEXTJS_COMPARISON.md](NEXTJS_COMPARISON.md) for full feature comparison.
 
 ---
 
@@ -575,10 +572,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ### Architecture & Performance
 
-- [Improvements Summary](IMPROVEMENTS_SUMMARY.md) - Full changelog
-- [Functional Programming Guide](FUNCTIONAL_QUICK_REFERENCE.md) - Techniques used
-- [Approach Comparison](FUNCTIONAL_APPROACH_COMPARISON.md) - Benchmarks
-- [Missing Features](CRITICAL_MISSING_FEATURES.md) - Known limitations
+- [Next.js Comparison](NEXTJS_COMPARISON.md) - Feature parity comparison
+- [Advanced Layouts Guide](ADVANCED_LAYOUTS_GUIDE.md) - Complex layout patterns
+- [Layout Quick Reference](LAYOUT_QUICK_REFERENCE.md) - Cheat sheet
 
 ---
 

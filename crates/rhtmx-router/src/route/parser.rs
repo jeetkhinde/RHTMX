@@ -132,7 +132,7 @@ fn should_skip_segment(segment: &str) -> bool {
         || segment == "loading" // Phase 4.3
         || segment == "_template" // Phase 4.4
         || segment == "not-found" // Phase 4.5
-        || segment == "index"
+        || segment == "page" // App Router convention: page.rsx files
         || matches!(segment, "(.)" | "(..)" | "(...)" | "(....)") // Intercepting route markers
         || (segment.starts_with('(') && segment.ends_with(')')) // Route groups
         || segment.starts_with('@') // Parallel route slots
@@ -190,18 +190,18 @@ fn process_segment(state: ParseState, segment: &str) -> ParseState {
 /// ```
 /// use rhtmx_router::route::parser::parse_pattern;
 ///
-/// // Static route
-/// let (pattern, params, _, _, _, _) = parse_pattern("pages/about.rhtml");
+/// // Static route (App Router: about/page.rsx)
+/// let (pattern, params, _, _, _, _) = parse_pattern("about/page");
 /// assert_eq!(pattern, "/about");
 /// assert_eq!(params.len(), 0);
 ///
-/// // Dynamic route
-/// let (pattern, params, _, _, _, _) = parse_pattern("pages/users/[id].rhtml");
+/// // Dynamic route (App Router: users/[id]/page.rsx)
+/// let (pattern, params, _, _, _, _) = parse_pattern("users/[id]/page");
 /// assert_eq!(pattern, "/users/:id");
 /// assert_eq!(params, vec!["id".to_string()]);
 ///
-/// // Catch-all route
-/// let (pattern, params, _, _, has_catch_all, _) = parse_pattern("pages/docs/[...slug].rhtml");
+/// // Catch-all route (App Router: docs/[...slug]/page.rsx)
+/// let (pattern, params, _, _, has_catch_all, _) = parse_pattern("docs/[...slug]/page");
 /// assert_eq!(pattern, "/docs/*slug");
 /// assert_eq!(has_catch_all, true);
 /// ```
@@ -212,9 +212,9 @@ fn process_segment(state: ParseState, segment: &str) -> ParseState {
 /// - `_error` - Error pages
 /// - `_nolayout` - No-layout markers
 /// - `loading` - Loading UI
+/// - `page` - App Router page files (skipped from URL pattern)
 /// - `_template` - Template files
 /// - `not-found` - 404 pages
-/// - `index` - Index pages
 /// - `(.)`, `(..)`, `(...)`, `(....)` - Intercepting route markers
 /// - `(folder)` - Route groups
 /// - `@slot` - Parallel route slots
@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_parse_pattern_skips_special_files() {
-        let (pattern, params, _, _, _, _) = parse_pattern("users/_layout/[id]/index");
+        let (pattern, params, _, _, _, _) = parse_pattern("users/_layout/[id]/page");
         assert_eq!(pattern, "/users/:id");
         assert_eq!(params, vec!["id".to_string()]);
     }
@@ -364,8 +364,8 @@ mod tests {
 
     #[test]
     fn test_parse_pattern_skips_parallel_slots() {
-        let (pattern, _, _, _, _, _) = parse_pattern("dashboard/@analytics/page");
-        assert_eq!(pattern, "/dashboard/page");
+        let (pattern, _, _, _, _, _) = parse_pattern("dashboard/@analytics");
+        assert_eq!(pattern, "/dashboard");
     }
 
     #[test]
