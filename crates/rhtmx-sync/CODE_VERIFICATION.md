@@ -108,12 +108,27 @@ async applyOptimisticFieldChange() // Line 468
 
 ---
 
-## ❌ NOT IMPLEMENTED (Documentation Only)
+## ✅ NEWLY IMPLEMENTED
 
-### 1. Multi-tab Sync (BroadcastChannel) ❌
-- **Status:** Roadmap item only
-- **Files:** None
-- **Evidence:** No BroadcastChannel code exists
+### 1. Multi-tab Sync (BroadcastChannel) ✅
+- **Status:** FULLY IMPLEMENTED
+- **Files:**
+  - `rhtmx-sync.js` - Lines 60-62 (fields), 692-778 (methods), 825 (init)
+  - `rhtmx-field-sync.js` - Lines 60-64 (fields), 796-888 (methods), 932 (init)
+- **Evidence:**
+  - `setupBroadcastChannel()` method in both clients
+  - `handleBroadcastMessage()` - Receives and processes tab messages
+  - `broadcastChange()` - Sends changes to other tabs
+  - `generateTabId()` - Creates unique tab identifiers
+  - Integration in `handleWebSocketMessage()` and `recordFieldChange()`
+  - Channel cleanup in `cleanup()` method
+- **Features:**
+  - Unique tab IDs prevent infinite loops
+  - Broadcasts server changes to all tabs
+  - Broadcasts optimistic updates to all tabs
+  - Graceful degradation when BroadcastChannel not available
+
+## ❌ NOT IMPLEMENTED (Documentation Only)
 
 ### 2. Compression ❌
 - **Status:** Roadmap item only
@@ -202,7 +217,7 @@ Total Lines:              ~2,700 lines of REAL CODE
 | **Reconnection** | ✅ YES | rhtmx-sync.js | Lines 334-350 |
 | **Heartbeat** | ✅ YES | rhtmx-sync.js | Lines 278-315 |
 | **Optimistic UI** | ✅ YES | rhtmx-sync.js | Lines 115, 456, 480 |
-| **Multi-tab sync** | ❌ NO | - | - |
+| **Multi-tab sync** | ✅ YES | rhtmx-sync.js, rhtmx-field-sync.js | Lines 692-778, 796-888 |
 | **Compression** | ❌ NO | - | - |
 | **PostgreSQL** | ❌ NO | - | - |
 
@@ -218,9 +233,9 @@ Total Lines:              ~2,700 lines of REAL CODE
 - ✅ Heartbeat/ping-pong
 - ✅ Optimistic UI updates
 - ✅ Connection state management
+- ✅ Multi-tab sync (BroadcastChannel)
 
 **DOCUMENTED BUT NOT IMPLEMENTED:**
-- ❌ Multi-tab sync (BroadcastChannel)
 - ❌ Compression
 - ❌ PostgreSQL support
 - ❌ Batch operations

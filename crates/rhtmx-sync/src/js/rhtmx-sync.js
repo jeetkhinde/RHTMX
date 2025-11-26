@@ -9,6 +9,7 @@
  * - Heartbeat/ping-pong
  * - Connection state management
  * - Optimistic UI updates
+ * - Multi-tab sync via BroadcastChannel
  *
  * Usage:
  * <script src="/api/sync/client.js"
@@ -55,9 +56,15 @@
             this.offlineQueue = [];
             this.isOnline = navigator.onLine;
 
+            // Multi-tab sync
+            this.broadcastChannel = null;
+            this.tabId = this.generateTabId();
+            this.processingBroadcast = false;
+
             this.log('Initializing RHTMX Sync', {
                 entities: this.entities,
-                useWebSocket: this.useWebSocket
+                useWebSocket: this.useWebSocket,
+                tabId: this.tabId
             });
         }
 
@@ -69,6 +76,13 @@
 
         error(...args) {
             console.error('[RHTMX Sync]', ...args);
+        }
+
+        /**
+         * Generate unique tab ID
+         */
+        generateTabId() {
+            return `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         }
 
         /**
@@ -243,6 +257,12 @@
                 case 'change':
                     await this.applyChanges(message.change.entity, [message.change]);
                     this.triggerRefresh(message.change.entity);
+
+                    // Broadcast to other tabs
+                    this.broadcastChange('change', {
+                        entity: message.change.entity,
+                        change: message.change
+                    });
                     break;
 
                 case 'push_ack':
@@ -374,6 +394,12 @@
 
                     await this.applyChanges(change.entity, [change]);
                     this.triggerRefresh(change.entity);
+
+                    // Broadcast to other tabs
+                    this.broadcastChange('change', {
+                        entity: change.entity,
+                        change: change
+                    });
                 } catch (error) {
                     this.error('Failed to process SSE event:', error);
                 }
@@ -434,6 +460,13 @@
             // Apply optimistically
             await this.applyOptimistic(entity, entityId, data);
             this.triggerRefresh(entity);
+
+            // Broadcast optimistic update to other tabs
+            this.broadcastChange('optimistic', {
+                entity,
+                entityId,
+                data
+            });
 
             if (this.connectionState === ConnectionState.CONNECTED) {
                 // Send via WebSocket
@@ -673,6 +706,97 @@
         }
 
         /**
+         * Setup BroadcastChannel for multi-tab sync
+         */
+        setupBroadcastChannel() {
+            if (!('BroadcastChannel' in window)) {
+                this.log('BroadcastChannel not supported');
+                return;
+            }
+
+            try {
+                this.broadcastChannel = new BroadcastChannel('rhtmx-sync');
+                this.log('BroadcastChannel initialized');
+
+                this.broadcastChannel.onmessage = (event) => {
+                    this.handleBroadcastMessage(event.data);
+                };
+
+                this.broadcastChannel.onerror = (error) => {
+                    this.error('BroadcastChannel error:', error);
+                };
+
+            } catch (error) {
+                this.error('Failed to setup BroadcastChannel:', error);
+            }
+        }
+
+        /**
+         * Handle message from another tab
+         */
+        async handleBroadcastMessage(message) {
+            // Ignore messages from this tab
+            if (message.tabId === this.tabId) {
+                return;
+            }
+
+            // Prevent infinite loops
+            if (this.processingBroadcast) {
+                return;
+            }
+
+            this.log('Received broadcast from tab:', message.tabId, message.type);
+
+            try {
+                this.processingBroadcast = true;
+
+                switch (message.type) {
+                    case 'change':
+                        // Apply change from another tab
+                        await this.applyChanges(message.entity, [message.change]);
+                        this.triggerRefresh(message.entity);
+                        break;
+
+                    case 'optimistic':
+                        // Apply optimistic update from another tab
+                        await this.applyOptimistic(message.entity, message.entityId, message.data);
+                        this.triggerRefresh(message.entity);
+                        break;
+
+                    case 'connection_state':
+                        // Sync connection state info (optional, for UI consistency)
+                        this.log(`Tab ${message.tabId} connection state: ${message.state}`);
+                        break;
+                }
+
+            } catch (error) {
+                this.error('Failed to process broadcast message:', error);
+            } finally {
+                this.processingBroadcast = false;
+            }
+        }
+
+        /**
+         * Broadcast change to other tabs
+         */
+        broadcastChange(type, data) {
+            if (!this.broadcastChannel) {
+                return;
+            }
+
+            try {
+                this.broadcastChannel.postMessage({
+                    tabId: this.tabId,
+                    type,
+                    timestamp: Date.now(),
+                    ...data
+                });
+            } catch (error) {
+                this.error('Failed to broadcast:', error);
+            }
+        }
+
+        /**
          * Cleanup on page unload
          */
         cleanup() {
@@ -682,6 +806,9 @@
             }
             if (this.eventSource) {
                 this.eventSource.close();
+            }
+            if (this.broadcastChannel) {
+                this.broadcastChannel.close();
             }
         }
 
@@ -714,6 +841,7 @@
                 await sync.initialSync();
                 sync.connectRealtime();
                 sync.setupOfflineHandlers();
+                sync.setupBroadcastChannel();
 
                 // Cleanup on page unload
                 window.addEventListener('beforeunload', () => sync.cleanup());

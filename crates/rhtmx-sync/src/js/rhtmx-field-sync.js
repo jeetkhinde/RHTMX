@@ -10,6 +10,7 @@
  * - Connection state management
  * - Optimistic field updates
  * - CRDT-like field-level conflict resolution
+ * - Multi-tab sync via BroadcastChannel
  *
  * Usage:
  * <script src="/api/sync/field-client.js"
@@ -56,9 +57,15 @@
             this.pendingChanges = new Map();
             this.isOnline = navigator.onLine;
 
+            // Multi-tab sync
+            this.broadcastChannel = null;
+            this.tabId = this.generateTabId();
+            this.processingBroadcast = false;
+
             this.log('Initializing RHTMX Field Sync', {
                 entities: this.entities,
-                useWebSocket: this.useWebSocket
+                useWebSocket: this.useWebSocket,
+                tabId: this.tabId
             });
         }
 
@@ -70,6 +77,13 @@
 
         error(...args) {
             console.error('[RHTMX Field Sync]', ...args);
+        }
+
+        /**
+         * Generate unique tab ID
+         */
+        generateTabId() {
+            return `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         }
 
         /**
@@ -252,6 +266,11 @@
                 case 'field_change':
                     await this.applyFieldChanges(message.change.entity, [message.change]);
                     this.triggerRefresh(message.change.entity);
+
+                    // Broadcast to other tabs
+                    this.broadcastChange('field_change', {
+                        change: message.change
+                    });
                     break;
 
                 case 'push_ack':
@@ -442,6 +461,15 @@
             // Apply optimistically
             await this.applyOptimisticFieldChange(entity, entityId, field, value, timestamp);
             this.triggerRefresh(entity);
+
+            // Broadcast optimistic update to other tabs
+            this.broadcastChange('optimistic_field', {
+                entity,
+                entityId,
+                field,
+                value,
+                timestamp
+            });
 
             if (this.connectionState === ConnectionState.CONNECTED) {
                 // Send via WebSocket
@@ -777,12 +805,112 @@
         }
 
         /**
+         * Setup BroadcastChannel for multi-tab sync
+         */
+        setupBroadcastChannel() {
+            if (!('BroadcastChannel' in window)) {
+                this.log('BroadcastChannel not supported');
+                return;
+            }
+
+            try {
+                this.broadcastChannel = new BroadcastChannel('rhtmx-field-sync');
+                this.log('BroadcastChannel initialized');
+
+                this.broadcastChannel.onmessage = (event) => {
+                    this.handleBroadcastMessage(event.data);
+                };
+
+                this.broadcastChannel.onerror = (error) => {
+                    this.error('BroadcastChannel error:', error);
+                };
+
+            } catch (error) {
+                this.error('Failed to setup BroadcastChannel:', error);
+            }
+        }
+
+        /**
+         * Handle message from another tab
+         */
+        async handleBroadcastMessage(message) {
+            // Ignore messages from this tab
+            if (message.tabId === this.tabId) {
+                return;
+            }
+
+            // Prevent infinite loops
+            if (this.processingBroadcast) {
+                return;
+            }
+
+            this.log('Received broadcast from tab:', message.tabId, message.type);
+
+            try {
+                this.processingBroadcast = true;
+
+                switch (message.type) {
+                    case 'field_change':
+                        // Apply field change from another tab
+                        await this.applyFieldChange(message.change);
+                        this.triggerFieldRefresh(message.change.entity, message.change.entity_id, message.change.field);
+                        break;
+
+                    case 'optimistic_field':
+                        // Apply optimistic field update from another tab
+                        await this.applyOptimisticFieldChange(
+                            message.entity,
+                            message.entityId,
+                            message.field,
+                            message.value,
+                            message.timestamp
+                        );
+                        this.triggerFieldRefresh(message.entity, message.entityId, message.field);
+                        break;
+
+                    case 'connection_state':
+                        // Sync connection state info (optional)
+                        this.log(`Tab ${message.tabId} connection state: ${message.state}`);
+                        break;
+                }
+
+            } catch (error) {
+                this.error('Failed to process broadcast message:', error);
+            } finally {
+                this.processingBroadcast = false;
+            }
+        }
+
+        /**
+         * Broadcast change to other tabs
+         */
+        broadcastChange(type, data) {
+            if (!this.broadcastChannel) {
+                return;
+            }
+
+            try {
+                this.broadcastChannel.postMessage({
+                    tabId: this.tabId,
+                    type,
+                    timestamp: Date.now(),
+                    ...data
+                });
+            } catch (error) {
+                this.error('Failed to broadcast:', error);
+            }
+        }
+
+        /**
          * Cleanup on page unload
          */
         cleanup() {
             this.stopHeartbeat();
             if (this.ws) {
                 this.ws.close();
+            }
+            if (this.broadcastChannel) {
+                this.broadcastChannel.close();
             }
         }
 
@@ -815,6 +943,7 @@
                 await sync.initialSync();
                 sync.connectRealtime();
                 sync.setupOfflineHandlers();
+                sync.setupBroadcastChannel();
 
                 // Cleanup on page unload
                 window.addEventListener('beforeunload', () => sync.cleanup());

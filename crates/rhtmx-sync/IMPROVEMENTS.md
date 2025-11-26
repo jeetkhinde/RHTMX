@@ -164,13 +164,46 @@ if (!window.rhtmxSync.isOnline) {
 }
 ```
 
-## 🔄 Next Steps
+## ✅ 7. Multi-Tab Sync with BroadcastChannel
 
-Field-level sync client (`rhtmx-field-sync.js`) will receive the same improvements:
-- WebSocket support
-- Reconnection logic
-- Offline queue
-- Optimistic updates
-- Heartbeat
+### Implementation:
+- **BroadcastChannel API** - Direct tab-to-tab communication
+- **Unique tab IDs** - Prevents infinite broadcast loops
+- **Automatic broadcasting** - Changes from server and local optimistic updates
+- **Zero configuration** - Automatically enabled when supported
 
-This ensures consistency between entity and field-level sync implementations.
+### Behavior:
+```
+Tab 1: Receives change from server → Applies to DB → Broadcasts to other tabs
+Tab 2: Receives broadcast → Applies change → Updates UI
+Tab 3: Receives broadcast → Applies change → Updates UI
+```
+
+### Benefits:
+- **Instant sync**: No waiting for server notifications
+- **Reduced bandwidth**: One server message → all tabs updated
+- **Better UX**: Consistent state across all tabs
+- **Graceful degradation**: Works without BroadcastChannel support
+
+### Message Types:
+```javascript
+// Entity-level sync
+{type: 'change', entity, change}        // Server changes
+{type: 'optimistic', entity, entityId, data}  // Local changes
+
+// Field-level sync
+{type: 'field_change', change}          // Server field changes
+{type: 'optimistic_field', entity, entityId, field, value}  // Local field changes
+```
+
+## 🔄 Consistency Across Clients
+
+Field-level sync client (`rhtmx-field-sync.js`) has received ALL the same improvements:
+- ✅ WebSocket support with SSE fallback
+- ✅ Automatic reconnection with exponential backoff
+- ✅ Complete offline queue support
+- ✅ Optimistic field updates
+- ✅ Heartbeat/ping-pong
+- ✅ Multi-tab sync via BroadcastChannel
+
+This ensures complete feature parity between entity and field-level sync implementations.

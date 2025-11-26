@@ -410,13 +410,37 @@ When you add sync routes, both WebSocket and SSE endpoints are available:
 {"type": "push_ack", "entity": "users", "entity_id": "1", "applied": 3, "conflicts": 1}
 ```
 
+## Multi-Tab Sync (New!)
+
+rhtmx-sync now supports **multi-tab synchronization** using the BroadcastChannel API. This allows tabs in the same browser to share sync state instantly without server round-trips.
+
+### How It Works
+
+When one tab receives an update (via WebSocket or makes a local change), it broadcasts to all other tabs:
+
+1. **Automatic Broadcasting**: Changes received from server are automatically broadcast to other tabs
+2. **Optimistic Updates**: Local changes are immediately shared with other tabs
+3. **No Server Round-Trip**: Tabs communicate directly via BroadcastChannel
+4. **Infinite Loop Prevention**: Each tab has a unique ID and ignores its own broadcasts
+
+### Benefits
+
+- **Instant UI sync**: All tabs stay in sync in real-time
+- **Reduced server load**: Tabs don't need to poll or wait for server notifications
+- **Better UX**: Users see consistent state across all tabs
+- **Zero configuration**: Automatically enabled when BroadcastChannel is available
+
+### Browser Support
+
+BroadcastChannel is supported in all modern browsers (Chrome, Firefox, Safari, Edge). The library gracefully degrades if not available.
+
 ## Roadmap
 
 - [ ] PostgreSQL support (LISTEN/NOTIFY)
 - [ ] CRDT integration (Automerge)
 - [x] Field-level sync (not just entity-level) ✅
 - [x] WebSocket option (alternative to SSE) ✅
-- [ ] Multi-tab sync (BroadcastChannel)
+- [x] Multi-tab sync (BroadcastChannel) ✅
 - [ ] Compression for large payloads
 - [ ] Batch sync optimization
 
