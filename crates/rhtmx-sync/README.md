@@ -6,7 +6,7 @@ Automatic IndexedDB synchronization for RHTMX applications with **minimal develo
 
 - ✅ **Zero-config sync**: Add one derive macro, get automatic sync
 - ✅ **Offline support**: Mutations queue when offline, sync when online
-- ✅ **Real-time updates**: SSE pushes changes to all connected clients
+- ✅ **Real-time updates**: WebSocket (bidirectional) or SSE (fallback)
 - ✅ **Conflict resolution**: Last-write-wins, client-wins, server-wins strategies
 - ✅ **Field-level sync**: CRDT-like field granularity (like Yjs/Automerge)
 - ✅ **Type-safe**: Rust's type system ensures correctness
@@ -350,12 +350,72 @@ When field-level sync is enabled, these additional endpoints are available:
 3. **Better user experience**: Less chance of losing work due to conflicts
 4. **CRDT-like behavior**: Similar to Yjs, Automerge for collaborative editing
 
+## WebSocket Support (New!)
+
+rhtmx-sync now supports **WebSocket** for bidirectional real-time sync, which is more efficient than SSE.
+
+### Benefits of WebSocket over SSE
+
+1. **Bidirectional**: Push and pull through same connection (SSE is one-way)
+2. **Lower overhead**: Single persistent connection vs SSE + HTTP POST
+3. **Better for real-time sync**: Immediate updates both ways
+4. **More resource efficient**: Less connections, less bandwidth
+
+### WebSocket Endpoints
+
+When you add sync routes, both WebSocket and SSE endpoints are available:
+
+- **WebSocket (preferred)**: `ws://localhost:3000/api/sync/ws` - Entity-level sync
+- **WebSocket (field-level)**: `ws://localhost:3000/api/field-sync/ws` - Field-level sync
+- **SSE (fallback)**: `GET /api/sync/events` - For browsers without WebSocket
+
+### WebSocket Protocol
+
+#### Entity-Level Sync Messages
+
+```json
+// Client subscribes to entities
+{"type": "subscribe", "entities": ["users", "posts"]}
+
+// Client requests sync
+{"type": "sync", "entity": "users", "since": 42}
+
+// Server sends change
+{"type": "change", "change": {...}}
+
+// Client pushes change
+{"type": "push", "entity": "users", "entity_id": "1", "action": "update", "data": {...}}
+
+// Server acknowledges
+{"type": "push_ack", "entity": "users", "entity_id": "1", "version": 43}
+```
+
+#### Field-Level Sync Messages
+
+```json
+// Client pushes field changes
+{
+  "type": "push_fields",
+  "entity": "users",
+  "entity_id": "1",
+  "fields": [
+    {"field": "name", "value": "Alice", "action": "update", "timestamp": "2024-01-01T12:00:00Z"}
+  ]
+}
+
+// Server sends field change
+{"type": "field_change", "change": {...}}
+
+// Server acknowledges with conflict info
+{"type": "push_ack", "entity": "users", "entity_id": "1", "applied": 3, "conflicts": 1}
+```
+
 ## Roadmap
 
 - [ ] PostgreSQL support (LISTEN/NOTIFY)
 - [ ] CRDT integration (Automerge)
 - [x] Field-level sync (not just entity-level) ✅
-- [ ] WebSocket option (alternative to SSE)
+- [x] WebSocket option (alternative to SSE) ✅
 - [ ] Multi-tab sync (BroadcastChannel)
 - [ ] Compression for large payloads
 - [ ] Batch sync optimization

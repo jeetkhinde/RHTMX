@@ -13,6 +13,8 @@ use crate::{
     field_tracker::{FieldTracker, FieldMergeStrategy},
     conflict::SyncStrategy,
     sse::sync_events_handler,
+    websocket::ws_sync_handler,
+    field_websocket::ws_field_sync_handler,
     sync_api::{get_sync_handler, post_sync_handler},
     field_sync_api::{get_field_sync_handler, post_field_sync_handler, get_latest_fields_handler},
 };
@@ -98,12 +100,14 @@ impl SyncEngine {
             // Sync API endpoints (entity-level)
             .route("/api/sync/:entity", get(get_sync_handler))
             .route("/api/sync/:entity", post(post_sync_handler))
-            // SSE endpoint for real-time updates
+            // Real-time updates - WebSocket (preferred) and SSE (fallback)
+            .route("/api/sync/ws", get(ws_sync_handler))
             .route("/api/sync/events", get(sync_events_handler))
             // Client JavaScript libraries
             .route("/api/sync/client.js", get(serve_client_js))
             .route("/api/sync/field-client.js", get(serve_field_client_js))
             // Inject dependencies
+            .with_state(tracker.clone())
             .layer(Extension(tracker))
             .layer(Extension(broadcast_tx));
 
@@ -116,6 +120,8 @@ impl SyncEngine {
                     "/api/field-sync/:entity/:entity_id/latest",
                     get(get_latest_fields_handler),
                 )
+                // WebSocket for field-level sync
+                .route("/api/field-sync/ws", get(ws_field_sync_handler))
                 .with_state(field_tracker.clone());
 
             router = router.merge(field_router);

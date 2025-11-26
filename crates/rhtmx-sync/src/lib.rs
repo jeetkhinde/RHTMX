@@ -33,6 +33,8 @@ pub mod syncable;
 pub mod change_tracker;
 pub mod field_tracker;
 pub mod sse;
+pub mod websocket;
+pub mod field_websocket;
 pub mod sync_api;
 pub mod field_sync_api;
 pub mod conflict;
