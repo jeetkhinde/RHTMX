@@ -2,6 +2,7 @@
 // Purpose: WebSocket-based real-time sync (better than SSE for bidirectional sync)
 
 use crate::change_tracker::{ChangeAction, ChangeLog, ChangeTracker};
+use crate::compression::{compress_message, decompress, CompressedMessage, CompressionConfig};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -12,7 +13,6 @@ use axum::{
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::broadcast;
 
 /// WebSocket message types for sync protocol
 #[derive(Debug, Serialize, Deserialize)]
@@ -54,33 +54,68 @@ pub enum SyncMessage {
     Pong,
 }
 
-/// WebSocket handler for entity-level sync
-pub async fn ws_sync_handler(
-    State(tracker): State<Arc<ChangeTracker>>,
-    ws: WebSocketUpgrade,
-) -> Response {
-    ws.on_upgrade(|socket| handle_sync_socket(socket, tracker))
+/// WebSocket state with compression config
+#[derive(Clone)]
+pub struct WebSocketState {
+    pub tracker: Arc<ChangeTracker>,
+    pub compression: CompressionConfig,
 }
 
-async fn handle_sync_socket(socket: WebSocket, tracker: Arc<ChangeTracker>) {
+impl WebSocketState {
+    pub fn new(tracker: Arc<ChangeTracker>, compression: CompressionConfig) -> Self {
+        Self {
+            tracker,
+            compression,
+        }
+    }
+}
+
+/// WebSocket handler for entity-level sync
+pub async fn ws_sync_handler(State(state): State<Arc<WebSocketState>>, ws: WebSocketUpgrade) -> Response {
+    ws.on_upgrade(|socket| handle_sync_socket(socket, state))
+}
+
+async fn handle_sync_socket(socket: WebSocket, state: Arc<WebSocketState>) {
     let (mut sender, mut receiver) = socket.split();
 
     // Subscribe to broadcast changes
-    let mut broadcast_rx = tracker.subscribe();
+    let mut broadcast_rx = state.tracker.subscribe();
+    let tracker_clone = state.tracker.clone();
+    let compression_config = state.compression.clone();
 
     // Handle incoming messages from client
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
-            if let Message::Text(text) = msg {
-                match serde_json::from_str::<SyncMessage>(&text) {
-                    Ok(sync_msg) => {
-                        if let Err(e) = handle_client_message(sync_msg, &tracker).await {
-                            tracing::error!("Error handling client message: {}", e);
+            let text = match msg {
+                Message::Text(t) => t,
+                Message::Binary(data) => {
+                    // Decompress binary message
+                    match decompress(&data) {
+                        Ok(decompressed) => match String::from_utf8(decompressed) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                tracing::error!("Failed to decode decompressed message: {}", e);
+                                continue;
+                            }
+                        },
+                        Err(e) => {
+                            tracing::error!("Failed to decompress message: {}", e);
+                            continue;
                         }
                     }
-                    Err(e) => {
-                        tracing::error!("Failed to parse message: {}", e);
+                }
+                Message::Close(_) => break,
+                _ => continue,
+            };
+
+            match serde_json::from_str::<SyncMessage>(&text) {
+                Ok(sync_msg) => {
+                    if let Err(e) = handle_client_message(sync_msg, &tracker_clone).await {
+                        tracing::error!("Error handling client message: {}", e);
                     }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to parse message: {}", e);
                 }
             }
         }
@@ -92,8 +127,25 @@ async fn handle_sync_socket(socket: WebSocket, tracker: Arc<ChangeTracker>) {
             let msg = SyncMessage::Change { change };
 
             if let Ok(json) = serde_json::to_string(&msg) {
-                if sender.send(Message::Text(json)).await.is_err() {
-                    break;
+                // Compress if needed
+                match compress_message(&json, &compression_config) {
+                    Ok(CompressedMessage::Compressed(data)) => {
+                        if sender.send(Message::Binary(data)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Ok(CompressedMessage::Uncompressed(text)) => {
+                        if sender.send(Message::Text(text)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to compress message: {}", e);
+                        // Fall back to uncompressed
+                        if sender.send(Message::Text(json)).await.is_err() {
+                            break;
+                        }
+                    }
                 }
             }
         }

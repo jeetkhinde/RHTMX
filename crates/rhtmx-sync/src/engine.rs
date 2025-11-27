@@ -12,9 +12,10 @@ use crate::{
     change_tracker::ChangeTracker,
     field_tracker::{FieldTracker, FieldMergeStrategy},
     conflict::SyncStrategy,
+    compression::CompressionConfig,
     sse::sync_events_handler,
-    websocket::ws_sync_handler,
-    field_websocket::ws_field_sync_handler,
+    websocket::{ws_sync_handler, WebSocketState},
+    field_websocket::{ws_field_sync_handler, FieldWebSocketState},
     sync_api::{get_sync_handler, post_sync_handler},
     field_sync_api::{get_field_sync_handler, post_field_sync_handler, get_latest_fields_handler},
 };
@@ -37,6 +38,9 @@ pub struct SyncConfig {
     /// Enable field-level sync (default: false for backward compatibility)
     pub enable_field_sync: bool,
 
+    /// Compression configuration
+    pub compression: CompressionConfig,
+
     /// Enable debug logging
     pub debug: bool,
 }
@@ -49,6 +53,7 @@ impl SyncConfig {
             strategy: SyncStrategy::default(),
             field_strategy: FieldMergeStrategy::default(),
             enable_field_sync: false,
+            compression: CompressionConfig::default(),
             debug: false,
         }
     }
@@ -57,6 +62,18 @@ impl SyncConfig {
     pub fn with_field_sync(mut self, strategy: FieldMergeStrategy) -> Self {
         self.enable_field_sync = true;
         self.field_strategy = strategy;
+        self
+    }
+
+    /// Set compression configuration
+    pub fn with_compression(mut self, compression: CompressionConfig) -> Self {
+        self.compression = compression;
+        self
+    }
+
+    /// Disable compression
+    pub fn without_compression(mut self) -> Self {
+        self.compression = CompressionConfig::disabled();
         self
     }
 }
@@ -96,35 +113,57 @@ impl SyncEngine {
         let tracker = self.change_tracker.clone();
         let broadcast_tx = Arc::new(tracker.subscribe().resubscribe());
 
-        let mut router = Router::new()
+        // Create WebSocket state with compression
+        let ws_state = Arc::new(WebSocketState::new(
+            tracker.clone(),
+            self.config.compression.clone(),
+        ));
+
+        // Create entity-level sync routes
+        let sync_router = Router::new()
             // Sync API endpoints (entity-level)
             .route("/api/sync/:entity", get(get_sync_handler))
             .route("/api/sync/:entity", post(post_sync_handler))
-            // Real-time updates - WebSocket (preferred) and SSE (fallback)
-            .route("/api/sync/ws", get(ws_sync_handler))
             .route("/api/sync/events", get(sync_events_handler))
-            // Client JavaScript libraries
-            .route("/api/sync/client.js", get(serve_client_js))
-            .route("/api/sync/field-client.js", get(serve_field_client_js))
             // Inject dependencies
-            .with_state(tracker.clone())
-            .layer(Extension(tracker))
+            .layer(Extension(tracker.clone()))
             .layer(Extension(broadcast_tx));
+
+        // Create WebSocket route separately with its own state
+        let ws_router = Router::new()
+            .route("/api/sync/ws", get(ws_sync_handler))
+            .with_state(ws_state);
+
+        // Create static routes for client JS
+        let static_router = Router::new()
+            .route("/api/sync/client.js", get(serve_client_js))
+            .route("/api/sync/field-client.js", get(serve_field_client_js));
+
+        let mut router = sync_router.merge(ws_router).merge(static_router);
 
         // Add field-level sync routes if enabled
         if let Some(field_tracker) = &self.field_tracker {
-            let field_router = Router::new()
+            // Create field WebSocket state with compression
+            let field_ws_state = Arc::new(FieldWebSocketState::new(
+                field_tracker.clone(),
+                self.config.compression.clone(),
+            ));
+
+            let field_api_router = Router::new()
                 .route("/api/field-sync/:entity", get(get_field_sync_handler))
                 .route("/api/field-sync/:entity", post(post_field_sync_handler))
                 .route(
                     "/api/field-sync/:entity/:entity_id/latest",
                     get(get_latest_fields_handler),
                 )
-                // WebSocket for field-level sync
-                .route("/api/field-sync/ws", get(ws_field_sync_handler))
                 .with_state(field_tracker.clone());
 
-            router = router.merge(field_router);
+            // Create field WebSocket route separately
+            let field_ws_router = Router::new()
+                .route("/api/field-sync/ws", get(ws_field_sync_handler))
+                .with_state(field_ws_state);
+
+            router = router.merge(field_api_router).merge(field_ws_router);
         }
 
         router

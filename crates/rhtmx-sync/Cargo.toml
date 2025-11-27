@@ -42,6 +42,9 @@ thiserror = "1.0"
 tracing = { workspace = true }
 async-stream = "0.3"
 
+# Compression
+flate2 = "1.0"
+
 [dev-dependencies]
 axum-test = "14.0"
 pretty_assertions = "1.4"

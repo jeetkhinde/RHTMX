@@ -2,6 +2,7 @@
 // Purpose: WebSocket-based field-level sync
 
 use crate::field_tracker::{FieldAction, FieldChange, FieldTracker};
+use crate::compression::{compress_message, decompress, CompressedMessage, CompressionConfig};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -73,41 +74,76 @@ pub struct FieldUpdate {
     pub timestamp: DateTime<Utc>,
 }
 
-/// WebSocket handler for field-level sync
-pub async fn ws_field_sync_handler(
-    State(tracker): State<Arc<FieldTracker>>,
-    ws: WebSocketUpgrade,
-) -> Response {
-    ws.on_upgrade(|socket| handle_field_sync_socket(socket, tracker))
+/// WebSocket state with compression config for field sync
+#[derive(Clone)]
+pub struct FieldWebSocketState {
+    pub tracker: Arc<FieldTracker>,
+    pub compression: CompressionConfig,
 }
 
-async fn handle_field_sync_socket(socket: WebSocket, tracker: Arc<FieldTracker>) {
+impl FieldWebSocketState {
+    pub fn new(tracker: Arc<FieldTracker>, compression: CompressionConfig) -> Self {
+        Self {
+            tracker,
+            compression,
+        }
+    }
+}
+
+/// WebSocket handler for field-level sync
+pub async fn ws_field_sync_handler(
+    State(state): State<Arc<FieldWebSocketState>>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    ws.on_upgrade(|socket| handle_field_sync_socket(socket, state))
+}
+
+async fn handle_field_sync_socket(socket: WebSocket, state: Arc<FieldWebSocketState>) {
     let (mut sender, mut receiver) = socket.split();
 
     // Subscribe to broadcast field changes
-    let mut broadcast_rx = tracker.subscribe();
-    let tracker_clone = tracker.clone();
+    let mut broadcast_rx = state.tracker.subscribe();
+    let tracker_clone = state.tracker.clone();
+    let compression_config = state.compression.clone();
 
     // Handle incoming messages from client
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
-            if let Message::Text(text) = msg {
-                match serde_json::from_str::<FieldSyncMessage>(&text) {
-                    Ok(sync_msg) => {
-                        if let Some(response) =
-                            handle_client_field_message(sync_msg, &tracker_clone).await
-                        {
-                            // Would send response back through sender
-                            // For now we'll handle via broadcast
-                            tracing::debug!("Response ready: {:?}", response);
+            let text = match msg {
+                Message::Text(t) => t,
+                Message::Binary(data) => {
+                    // Decompress binary message
+                    match decompress(&data) {
+                        Ok(decompressed) => match String::from_utf8(decompressed) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                tracing::error!("Failed to decode decompressed field message: {}", e);
+                                continue;
+                            }
+                        },
+                        Err(e) => {
+                            tracing::error!("Failed to decompress field message: {}", e);
+                            continue;
                         }
                     }
-                    Err(e) => {
-                        tracing::error!("Failed to parse field message: {}", e);
+                }
+                Message::Close(_) => break,
+                _ => continue,
+            };
+
+            match serde_json::from_str::<FieldSyncMessage>(&text) {
+                Ok(sync_msg) => {
+                    if let Some(response) =
+                        handle_client_field_message(sync_msg, &tracker_clone).await
+                    {
+                        // Would send response back through sender
+                        // For now we'll handle via broadcast
+                        tracing::debug!("Response ready: {:?}", response);
                     }
                 }
-            } else if let Message::Close(_) = msg {
-                break;
+                Err(e) => {
+                    tracing::error!("Failed to parse field message: {}", e);
+                }
             }
         }
     });
@@ -118,8 +154,25 @@ async fn handle_field_sync_socket(socket: WebSocket, tracker: Arc<FieldTracker>)
             let msg = FieldSyncMessage::FieldChange { change };
 
             if let Ok(json) = serde_json::to_string(&msg) {
-                if sender.send(Message::Text(json)).await.is_err() {
-                    break;
+                // Compress if needed
+                match compress_message(&json, &compression_config) {
+                    Ok(CompressedMessage::Compressed(data)) => {
+                        if sender.send(Message::Binary(data)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Ok(CompressedMessage::Uncompressed(text)) => {
+                        if sender.send(Message::Text(text)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to compress field message: {}", e);
+                        // Fall back to uncompressed
+                        if sender.send(Message::Text(json)).await.is_err() {
+                            break;
+                        }
+                    }
                 }
             }
         }

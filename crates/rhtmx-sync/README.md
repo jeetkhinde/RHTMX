@@ -7,6 +7,7 @@ Automatic IndexedDB synchronization for RHTMX applications with **minimal develo
 - ✅ **Zero-config sync**: Add one derive macro, get automatic sync
 - ✅ **Offline support**: Mutations queue when offline, sync when online
 - ✅ **Real-time updates**: WebSocket (bidirectional) or SSE (fallback)
+- ✅ **Message compression**: Automatic gzip compression for large payloads (50-90% bandwidth reduction)
 - ✅ **Conflict resolution**: Last-write-wins, client-wins, server-wins strategies
 - ✅ **Field-level sync**: CRDT-like field granularity (like Yjs/Automerge)
 - ✅ **Type-safe**: Rust's type system ensures correctness
@@ -434,6 +435,43 @@ When one tab receives an update (via WebSocket or makes a local change), it broa
 
 BroadcastChannel is supported in all modern browsers (Chrome, Firefox, Safari, Edge). The library gracefully degrades if not available.
 
+## Compression
+
+rhtmx-sync now supports **automatic message compression** to reduce bandwidth usage for large payloads. See [COMPRESSION.md](./COMPRESSION.md) for full details.
+
+### Server Configuration
+
+```rust
+use rhtmx_sync::CompressionConfig;
+
+let config = SyncConfig::new(db_pool, entities)
+    .with_compression(CompressionConfig::default()); // Enable with defaults (1KB threshold)
+
+// Or customize
+let compression = CompressionConfig::new(true, 2048, 6); // enabled, 2KB threshold, level 6
+let config = SyncConfig::new(db_pool, entities).with_compression(compression);
+
+// Or disable
+let config = SyncConfig::new(db_pool, entities).without_compression();
+```
+
+### Client Configuration
+
+```html
+<script src="/api/sync/client.js"
+        data-sync-entities="users,posts"
+        data-compression-enabled="true"
+        data-compression-threshold="1024">
+</script>
+```
+
+### Benefits
+
+- **50-90% bandwidth reduction** for large payloads
+- **Automatic threshold-based** compression (only compresses when beneficial)
+- **Native browser support** (CompressionStream API)
+- **Fully backward compatible** (graceful fallback)
+
 ## Roadmap
 
 - [ ] PostgreSQL support (LISTEN/NOTIFY)
@@ -441,7 +479,7 @@ BroadcastChannel is supported in all modern browsers (Chrome, Firefox, Safari, E
 - [x] Field-level sync (not just entity-level) ✅
 - [x] WebSocket option (alternative to SSE) ✅
 - [x] Multi-tab sync (BroadcastChannel) ✅
-- [ ] Compression for large payloads
+- [x] Compression for large payloads ✅
 - [ ] Batch sync optimization
 
 ## License
