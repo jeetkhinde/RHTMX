@@ -39,6 +39,16 @@
             this.useWebSocket = config.useWebSocket !== false; // Default true
             this.debug = config.debug || false;
 
+            // Compression configuration
+            this.compressionEnabled = config.compressionEnabled !== false; // Default true
+            this.compressionThreshold = config.compressionThreshold || 1024; // 1KB default
+            this.compressionSupported = typeof CompressionStream !== 'undefined';
+
+            if (this.compressionEnabled && !this.compressionSupported) {
+                this.log('Warning: Compression requested but CompressionStream API not supported');
+                this.compressionEnabled = false;
+            }
+
             // Connection management
             this.connectionState = ConnectionState.DISCONNECTED;
             this.ws = null;
@@ -64,6 +74,7 @@
             this.log('Initializing RHTMX Sync', {
                 entities: this.entities,
                 useWebSocket: this.useWebSocket,
+                compression: this.compressionEnabled ? `enabled (${this.compressionThreshold}B threshold)` : 'disabled',
                 tabId: this.tabId
             });
         }
@@ -76,6 +87,50 @@
 
         error(...args) {
             console.error('[RHTMX Sync]', ...args);
+        }
+
+        /**
+         * Compress data using gzip
+         */
+        async compressData(text) {
+            if (!this.compressionEnabled || text.length < this.compressionThreshold) {
+                return null; // Don't compress
+            }
+
+            try {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(text);
+
+                // Use gzip compression
+                const stream = new Blob([data]).stream();
+                const compressedStream = stream.pipeThrough(new CompressionStream('gzip'));
+                const compressedBlob = await new Response(compressedStream).blob();
+                const compressed = await compressedBlob.arrayBuffer();
+
+                // Only use compression if it actually reduces size
+                if (compressed.byteLength < data.byteLength) {
+                    return compressed;
+                }
+                return null; // Uncompressed is smaller
+            } catch (error) {
+                this.error('Compression failed:', error);
+                return null; // Fall back to uncompressed
+            }
+        }
+
+        /**
+         * Decompress gzip data
+         */
+        async decompressData(arrayBuffer) {
+            try {
+                const stream = new Blob([arrayBuffer]).stream();
+                const decompressedStream = stream.pipeThrough(new DecompressionStream('gzip'));
+                const decompressed = await new Response(decompressedStream).text();
+                return decompressed;
+            } catch (error) {
+                this.error('Decompression failed:', error);
+                throw error;
+            }
         }
 
         /**
@@ -222,12 +277,29 @@
                     this.syncPendingMutations();
                 };
 
-                this.ws.onmessage = (event) => {
+                this.ws.onmessage = async (event) => {
                     try {
-                        const message = JSON.parse(event.data);
+                        let messageText;
+
+                        // Handle both text and binary (compressed) messages
+                        if (typeof event.data === 'string') {
+                            messageText = event.data;
+                        } else if (event.data instanceof Blob) {
+                            // Binary message - decompress
+                            const arrayBuffer = await event.data.arrayBuffer();
+                            messageText = await this.decompressData(arrayBuffer);
+                        } else if (event.data instanceof ArrayBuffer) {
+                            // Binary message - decompress
+                            messageText = await this.decompressData(event.data);
+                        } else {
+                            this.error('Unknown message type:', typeof event.data);
+                            return;
+                        }
+
+                        const message = JSON.parse(messageText);
                         this.handleWebSocketMessage(message);
                     } catch (error) {
-                        this.error('Failed to parse WebSocket message:', error);
+                        this.error('Failed to process WebSocket message:', error);
                     }
                 };
 
@@ -282,9 +354,38 @@
         }
 
         /**
-         * Send message via WebSocket
+         * Send message via WebSocket (with optional compression)
          */
-        sendMessage(message) {
+        async sendMessage(message) {
+            if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                return false;
+            }
+
+            try {
+                const json = JSON.stringify(message);
+                const compressed = await this.compressData(json);
+
+                if (compressed) {
+                    // Send as binary (compressed)
+                    this.ws.send(compressed);
+                    this.log(`Sent compressed message (${compressed.byteLength}B from ${json.length}B)`);
+                } else {
+                    // Send as text (uncompressed)
+                    this.ws.send(json);
+                }
+
+                return true;
+            } catch (error) {
+                this.error('Failed to send message:', error);
+                return false;
+            }
+        }
+
+        /**
+         * Send message via WebSocket synchronously (no compression)
+         * Used for heartbeat/ping messages
+         */
+        sendMessageSync(message) {
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
                 this.ws.send(JSON.stringify(message));
                 return true;
@@ -300,7 +401,7 @@
 
             // Send ping every 30 seconds
             this.heartbeatInterval = setInterval(() => {
-                if (this.sendMessage({ type: 'ping' })) {
+                if (this.sendMessageSync({ type: 'ping' })) {
                     // Expect pong within 5 seconds
                     this.heartbeatTimeout = setTimeout(() => {
                         this.error('Heartbeat timeout, reconnecting');
@@ -822,6 +923,10 @@
             const useWebSocket = scriptTag.getAttribute('data-use-websocket') !== 'false';
             const debug = scriptTag.getAttribute('data-debug') === 'true';
 
+            // Compression configuration
+            const compressionEnabled = scriptTag.getAttribute('data-compression-enabled') !== 'false'; // Default true
+            const compressionThreshold = parseInt(scriptTag.getAttribute('data-compression-threshold') || '1024', 10);
+
             if (!entities) {
                 console.error('[RHTMX Sync] No entities specified in data-sync-entities');
                 return;
@@ -831,6 +936,8 @@
                 entities: entities.split(',').map(e => e.trim()),
                 conflictStrategy,
                 useWebSocket,
+                compressionEnabled,
+                compressionThreshold,
                 debug
             };
 
