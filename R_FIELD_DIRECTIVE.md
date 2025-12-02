@@ -1,4 +1,5 @@
 # r-field Directive: Zero Boilerplate Form Generation
+# r-field directive code is located at Location: /crates/rhtmx-macro/src/html.rs:704-793
 
 ## What is r-field?
 
@@ -38,6 +39,9 @@ html! {
 ✅ Zero boilerplate - just `r-field`!
 ✅ Automatic attribute generation
 ✅ Impossible to forget validation
+
+## Location
+Location: /rhtmx-macro/src/html.rs:704-793
 
 ## How It Works
 
