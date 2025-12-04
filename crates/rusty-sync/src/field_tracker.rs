@@ -711,7 +711,8 @@ impl FieldTracker {
             .select(max(version))
             .first::<Option<i64>>(&mut conn)
             .await
-            .unwrap_or(None);
+            .optional()?
+            .flatten();
 
         Ok(result.unwrap_or(0))
     }
