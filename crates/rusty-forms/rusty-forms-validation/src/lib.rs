@@ -2,6 +2,31 @@
 //!
 //! Pure Rust validation functions compatible with both std and no_std environments.
 //! Used by both server-side validation and WASM client-side validation.
+//!
+//! This crate provides two main APIs:
+//!
+//! 1. **Validation Functions** - Pure functions for validating data (no_std compatible)
+//! 2. **Validated Types** - Type-safe wrappers using nutype (requires nutype/serde dependencies)
+//!
+//! # Validation Functions
+//!
+//! Use these for flexible, composable validation:
+//! ```rust,ignore
+//! use rusty_forms_validation::is_valid_email;
+//!
+//! if is_valid_email("user@example.com") {
+//!     // Valid email
+//! }
+//! ```
+//!
+//! # Validated Types
+//!
+//! Use these for type-safe validation at construction time:
+//! ```rust,ignore
+//! use rusty_forms_validation::types::EmailAddress;
+//!
+//! let email = EmailAddress::try_new("user@example.com".to_string())?;
+//! ```
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -11,13 +36,17 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
+// Validation function modules
 pub mod collection;
 pub mod email;
 pub mod numeric;
 pub mod password;
 pub mod string;
 
-// Re-export all validators
+// Validated type modules
+pub mod types;
+
+// Re-export all validation functions
 pub use collection::*;
 pub use email::*;
 pub use numeric::*;
