@@ -2004,7 +2004,6 @@ dependencies = [
  "pretty_assertions",
  "regex",
  "rhtmx-macro",
- "rhtmx-parser",
  "rhtmx-router",
  "rstest",
  "serde",
@@ -2030,7 +2029,6 @@ dependencies = [
  "glob",
  "notify",
  "rhtmx",
- "rhtmx-parser",
  "rhtmx-router",
  "serde",
  "tokio",
@@ -2067,17 +2065,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rhtmx-parser"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "pretty_assertions",
- "regex",
- "rstest",
- "serde",
-]
-
-[[package]]
 name = "rhtmx-router"
 version = "0.1.0"
 dependencies = [
@@ -2098,7 +2085,6 @@ dependencies = [
  "pretty_assertions",
  "regex",
  "rhtmx",
- "rhtmx-parser",
  "rstest",
  "serde",
  "serde_json",

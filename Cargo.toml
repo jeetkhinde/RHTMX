@@ -2,7 +2,6 @@
 members = [
   "crates/rhtmx",
   "crates/rhtmx-macro",
-  "crates/rhtmx-parser",
   "crates/rhtmx-router",
   "crates/rusty-sync",
   "crates/rusty-macro",

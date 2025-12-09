@@ -13,7 +13,6 @@ path = "src/lib.rs"
 
 [dependencies]
 rhtmx-macro = { path = "../rhtmx-macro" }
-rhtmx-parser = { path = "../rhtmx-parser" }
 rhtmx-router = { path = "../rhtmx-router" }
 
 axum = { workspace = true }
