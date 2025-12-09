@@ -24,10 +24,8 @@ fn hello() -> rhtmx::OkResponse {
 }
 
 fn hello_page(name: &str) -> Html {
-    html! {
-        <div>
-            <h1>Hello, {name}!</h1>
-        </div>
+    maud! {
+       
     }
 }
 ```
@@ -48,10 +46,8 @@ fn hello() -> rhtmx::OkResponse {
 // 2. UI Component - Pure function that returns HTML
 fn hello_page(name: &str) -> Html {
     // html! macro generates compile-time HTML
-    html! {
-        <div>
-            <h1>Hello, {name}!</h1>
-        </div>
+    maud! {
+        
     }
 }
 ```
