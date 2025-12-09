@@ -225,7 +225,7 @@ pub fn derive_syncable(input: TokenStream) -> TokenStream {
     let has_metadata = has_version || has_modified_at;
 
     let expanded = quote! {
-        impl #impl_generics rhtmx_sync::Syncable for #name #ty_generics #where_clause {
+        impl #impl_generics rusty_sync::Syncable for #name #ty_generics #where_clause {
             fn entity_name() -> &'static str {
                 #table_name
             }
