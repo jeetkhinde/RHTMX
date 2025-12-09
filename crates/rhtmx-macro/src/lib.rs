@@ -149,7 +149,6 @@ pub fn delete(input: TokenStream) -> TokenStream {
     http::http_handler("DELETE", input)
 }
 
-
 /// Derive macro for Syncable trait
 ///
 /// # Example
