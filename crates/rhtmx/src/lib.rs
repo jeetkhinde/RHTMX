@@ -4,6 +4,8 @@
 pub mod html;
 pub mod validation;
 pub mod form_field;
+pub mod value;
+pub mod directive_parser;
 
 // Framework modules
 pub mod renderer;
@@ -17,8 +19,7 @@ pub mod actions;
 // Re-export the html! macro from rhtmx-macro
 pub use rhtmx_macro::{html, css, get, post, put, patch, delete};
 
-// Re-export the Validate and FormField derive macros from rusty-forms
-pub use rusty_forms::{Validate, FormField};
+// Note: Validate and FormField derive macros are defined in rhtmx-macro
 
 // Re-export core types and response builders
 pub use html::{

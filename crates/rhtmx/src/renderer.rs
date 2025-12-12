@@ -4,7 +4,8 @@
 use crate::template_loader::TemplateLoader;
 use anyhow::Result;
 use regex::Regex;
-use rhtmx_parser::{DirectiveParser, ExpressionEvaluator, Value};
+use crate::directive_parser::{DirectiveParser, ExpressionEvaluator};
+use crate::value::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 

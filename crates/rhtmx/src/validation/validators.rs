@@ -1,20 +1,88 @@
 // File: src/validation/validators.rs
-// Purpose: Re-export validators from rusty-forms + std-only validators
-// This maintains backward compatibility while using the shared validation logic
+// Purpose: Validation helper functions
 
 use regex::Regex;
 use once_cell::sync::Lazy;
 
-// Re-export from rusty-forms validation module (no_std compatible validators)
-pub use rusty_forms::validation::email::{
-    is_valid_email,
-    is_public_domain,
-    is_blocked_domain,
-};
+// Email validation regex
+static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap()
+});
 
-pub use rusty_forms::validation::password::validate_password;
+// Public email domains
+const PUBLIC_DOMAINS: &[&str] = &[
+    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com",
+    "aol.com", "icloud.com", "mail.com", "protonmail.com"
+];
 
-pub use rusty_forms::validation::string::is_valid_url;
+/// Check if an email address is valid
+pub fn is_valid_email(email: &str) -> bool {
+    EMAIL_REGEX.is_match(email)
+}
+
+/// Check if email uses a public domain
+pub fn is_public_domain(email: &str) -> bool {
+    if let Some(domain) = email.split('@').nth(1) {
+        PUBLIC_DOMAINS.iter().any(|d| d.eq_ignore_ascii_case(domain))
+    } else {
+        false
+    }
+}
+
+/// Check if email uses a blocked domain
+pub fn is_blocked_domain(_email: &str) -> bool {
+    // Placeholder - implement custom blocked domain logic as needed
+    false
+}
+
+/// Validate password strength
+pub fn validate_password(password: &str, strength: &str) -> Result<(), String> {
+    let len = password.len();
+
+    match strength {
+        "strong" => {
+            if len < 8 {
+                return Err("Password must be at least 8 characters".into());
+            }
+            if !password.chars().any(|c| c.is_uppercase()) {
+                return Err("Password must contain uppercase letter".into());
+            }
+            if !password.chars().any(|c| c.is_lowercase()) {
+                return Err("Password must contain lowercase letter".into());
+            }
+            if !password.chars().any(|c| c.is_ascii_digit()) {
+                return Err("Password must contain a number".into());
+            }
+            if !password.chars().any(|c| !c.is_alphanumeric()) {
+                return Err("Password must contain a special character".into());
+            }
+            Ok(())
+        }
+        "medium" => {
+            if len < 6 {
+                return Err("Password must be at least 6 characters".into());
+            }
+            if !password.chars().any(|c| c.is_alphabetic()) {
+                return Err("Password must contain a letter".into());
+            }
+            if !password.chars().any(|c| c.is_ascii_digit()) {
+                return Err("Password must contain a number".into());
+            }
+            Ok(())
+        }
+        _ => { // "basic"
+            if len < 4 {
+                return Err("Password must be at least 4 characters".into());
+            }
+            Ok(())
+        }
+    }
+}
+
+/// Check if a string is a valid URL
+pub fn is_valid_url(url: &str) -> bool {
+    url.starts_with("http://") || url.starts_with("https://")
+}
 
 // Regex matching (requires std, so kept here)
 #[allow(dead_code)]

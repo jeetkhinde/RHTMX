@@ -19,7 +19,7 @@ use rhtmx::{
 };
 use crate::hot_reload::{create_watcher, ChangeType};
 use crate::action_handlers::{ActionHandlerRegistry, register_built_in_handlers};
-use rhtmx_parser::Value;
+use rhtmx::value::Value;
 use serde_json::Value as JsonValue;
 use sqlx::AnyPool;
 use std::sync::Arc;

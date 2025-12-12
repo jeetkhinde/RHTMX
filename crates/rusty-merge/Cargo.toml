@@ -1,0 +1,72 @@
+[package]
+name = "rusty-merge"
+version = "0.1.0"
+edition = "2021"
+description = "Automerge-based real-time sync for Rust applications"
+license = "MIT"
+repository = "https://github.com/jeetkhinde/rhtmx"
+keywords = ["crdt", "automerge", "sync", "realtime", "offline-first"]
+categories = ["web-programming", "database"]
+
+[features]
+default = ["server", "postgres"]
+server = ["axum", "tower", "tower-http"]
+postgres = ["sqlx/postgres", "deadpool-postgres", "tokio-postgres"]
+sqlite = ["sqlx/sqlite"]
+wasm = ["wasm-bindgen", "wasm-bindgen-futures", "js-sys", "web-sys", "gloo-storage", "gloo-timers"]
+
+[dependencies]
+# Core Automerge
+automerge = "0.5"
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+async-trait = "0.1"
+
+# Web framework (server feature)
+axum = { version = "0.7", features = ["ws"], optional = true }
+tower = { version = "0.4", optional = true }
+tower-http = { version = "0.5", features = ["cors", "trace"], optional = true }
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "json", "chrono", "uuid"], optional = true }
+deadpool-postgres = { version = "0.12", optional = true }
+tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-chrono-0_4", "with-uuid-1"], optional = true }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+postcard = { version = "1.0", features = ["alloc"] }
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+dashmap = "5.5"
+parking_lot = "0.12"
+bytes = "1.5"
+base64 = "0.21"
+
+# WASM (wasm feature)
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", features = [
+    "WebSocket",
+    "MessageEvent",
+    "BinaryType",
+    "CloseEvent",
+    "ErrorEvent",
+    "Window",
+    "Storage"
+], optional = true }
+gloo-storage = { version = "0.3", optional = true }
+gloo-timers = { version = "0.3", optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+pretty_assertions = "1.4"
