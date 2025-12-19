@@ -226,10 +226,7 @@ impl ProjectionManager {
     pub async fn get(&self, entity_type: &str, id: &str) -> MergeResult<Option<JsonValue>> {
         let table_name = sanitize_table_name(entity_type);
 
-        let query = format!(
-            "SELECT id, data, _meta FROM {} WHERE id = $1",
-            table_name
-        );
+        let query = format!("SELECT id, data, _meta FROM {} WHERE id = $1", table_name);
 
         let row = sqlx::query(&query)
             .bind(id)
@@ -304,12 +301,22 @@ impl ProjectionManager {
 
 /// Sanitize table name to prevent SQL injection
 fn sanitize_table_name(name: &str) -> String {
-    name.chars()
+    let sanitized = name
+        .chars()
         .filter(|c| c.is_alphanumeric() || *c == '_')
         .collect::<String>()
-        .to_lowercase()
+        .to_lowercase();
+    if sanitized.is_empty()
+        || sanitized
+            .chars()
+            .next()
+            .map_or(false, |c| c.is_ascii_digit())
+    {
+        format!("_{}", sanitized)
+    } else {
+        sanitized
+    }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -319,6 +326,9 @@ mod tests {
         assert_eq!(sanitize_table_name("users"), "users");
         assert_eq!(sanitize_table_name("user_profiles"), "user_profiles");
         assert_eq!(sanitize_table_name("Users"), "users");
-        assert_eq!(sanitize_table_name("users; DROP TABLE users;"), "usersdroptableusers");
+        assert_eq!(
+            sanitize_table_name("users; DROP TABLE users;"),
+            "usersdroptableusers"
+        );
     }
 }

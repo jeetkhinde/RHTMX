@@ -2106,8 +2106,6 @@ dependencies = [
  "darling",
  "pretty_assertions",
  "proc-macro2",
- "quote",
- "syn 2.0.109",
  "trybuild",
 ]
 

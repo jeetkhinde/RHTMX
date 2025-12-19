@@ -3,14 +3,12 @@
 // Supports optional path/query parameters: get!("param=value") { ... }
 
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::ItemFn;
 
 /// Parse function macro input to extract optional arguments and function
 // Pure function: same input → same output
 fn parse_function_macro_input(input_str: &str) -> (Option<String>, &str) {
     let trimmed = input_str.trim();
-    
+
     // Pattern matching (FP principle)
     trimmed
         .strip_prefix('"')
@@ -21,7 +19,7 @@ fn parse_function_macro_input(input_str: &str) -> (Option<String>, &str) {
                 (Some(arg), remaining)
             })
         })
-        .unwrap_or((None, trimmed))  // Default case
+        .unwrap_or((None, trimmed)) // Default case
 }
 
 /// Generate HTTP handler code from function macro
@@ -35,9 +33,12 @@ pub fn http_handler(method: &str, input: TokenStream) -> TokenStream {
     let input_fn = match syn::parse_str::<ItemFn>(&fn_input) {
         Ok(f) => f,
         Err(e) => {
-            return syn::Error::new_spanned(&fn_input, format!("Expected function definition: {}", e))
-                .to_compile_error()
-                .into();
+            return syn::Error::new_spanned(
+                &fn_input,
+                format!("Expected function definition: {}", e),
+            )
+            .to_compile_error()
+            .into();
         }
     };
 
@@ -99,7 +100,7 @@ pub fn http_handler(method: &str, input: TokenStream) -> TokenStream {
 ///   ":id/edit" -> (Some(":id/edit"), None)
 fn parse_route_args(args: &str) -> (Option<String>, Option<String>) {
     let args = args.trim();
-    
+
     // Using a match expression can be more idiomatic for this kind of logic.
     match args {
         a if a.contains('=') => (None, Some(a.to_string())),
