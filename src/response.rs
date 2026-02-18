@@ -308,6 +308,20 @@ impl IntoResponse for RedirectResponse {
 }
 
 // ============================================================================
+// Respond — blanket terminal trait
+// ============================================================================
+
+pub trait Respond {
+    fn ok(self) -> Response;
+}
+
+impl<T: IntoResponse> Respond for T {
+    fn ok(self) -> Response {
+        self.into_response()
+    }
+}
+
+// ============================================================================
 // Constructor functions
 // ============================================================================
 
