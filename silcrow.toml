@@ -1,8 +1,8 @@
-# RTHMX Configuration File
-# This file is optional - RHTMX works with sensible defaults if this file is missing
+# Silcrow Configuration File
+# This file is optional - Silcrow works with sensible defaults if this file is missing
 
 [project]
-name = "rhtmx-app"
+name = "silcrow-app"
 version = "0.1.0"
 author = "Jagjeet Singh"
 

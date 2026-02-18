@@ -1,15 +1,17 @@
 [package]
-name = "rhtmx"
+name = "silcrow"
 version = "0.1.0"
 edition = "2021"
-description = "HTMX response builders for Axum + Maud"
+description = "Silcrow response builders for Axum + Maud"
 license = "MIT"
 repository = "https://github.com/jeetkhinde/RHTMX"
 
 [lib]
-name = "rhtmx"
+name = "silcrow"
 path = "src/lib.rs"
 
 [dependencies]
 maud = "0.26"
 axum = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

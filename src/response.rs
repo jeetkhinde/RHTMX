@@ -34,30 +34,40 @@ fn insert_header(headers: &mut HeaderMap, key: &str, value: &str) {
     }
 }
 
-fn insert_toast(headers: &mut HeaderMap, message: &str) {
-    let escaped = message.replace('\\', "\\\\").replace('"', "\\\"");
-    let json = format!(r#"{{"showToast":{{"message":"{}"}}}}"#, escaped);
-    if let Result::Ok(value) = HeaderValue::from_str(&json) {
-        headers.insert("HX-Trigger", value);
+// ============================================================================
+// OkResponse — dispatcher with convenience constructors
+// ============================================================================
+
+pub struct OkResponse;
+
+impl OkResponse {
+    /// Create an HTML fragment response (for `s-html` requests).
+    pub fn html(content: impl IntoHtml) -> HtmlOkResponse {
+        HtmlOkResponse::new().html(content)
+    }
+
+    /// Create a JSON patch response (for default `s-action` requests).
+    pub fn json() -> JsonOkResponse {
+        JsonOkResponse::new()
     }
 }
 
+// ============================================================================
+// HtmlOkResponse — HTML fragment for s-html requests
+// ============================================================================
+
 #[derive(Debug)]
-pub struct OkResponse {
+pub struct HtmlOkResponse {
     content: Option<String>,
     headers: HeaderMap,
-    toast_message: Option<String>,
-    oob_updates: Vec<(String, String)>,
     status: StatusCode,
 }
 
-impl OkResponse {
+impl HtmlOkResponse {
     pub fn new() -> Self {
         Self {
             content: None,
             headers: HeaderMap::new(),
-            toast_message: None,
-            oob_updates: Vec::new(),
             status: StatusCode::OK,
         }
     }
@@ -68,21 +78,15 @@ impl OkResponse {
         self
     }
 
-    /// Add a toast notification via HX-Trigger header.
-    pub fn toast(mut self, message: impl Into<String>) -> Self {
-        self.toast_message = Some(message.into());
-        self
-    }
-
-    /// Add an out-of-band swap. Accepts Maud Markup, String, or &str.
-    pub fn oob(mut self, target: impl Into<String>, content: impl IntoHtml) -> Self {
-        self.oob_updates.push((target.into(), content.into_html()));
-        self
-    }
-
     /// Add a custom response header.
     pub fn header(mut self, key: impl AsRef<str>, value: impl AsRef<str>) -> Self {
         insert_header(&mut self.headers, key.as_ref(), value.as_ref());
+        self
+    }
+
+    /// Set `silcrow-cache: no-cache` to prevent client-side caching.
+    pub fn no_cache(mut self) -> Self {
+        insert_header(&mut self.headers, "silcrow-cache", "no-cache");
         self
     }
 
@@ -93,29 +97,98 @@ impl OkResponse {
     }
 }
 
-impl Default for OkResponse {
+impl Default for HtmlOkResponse {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl IntoResponse for OkResponse {
+impl IntoResponse for HtmlOkResponse {
     fn into_response(self) -> Response {
-        let mut headers = self.headers;
-        if let Some(msg) = self.toast_message {
-            insert_toast(&mut headers, &msg);
-        }
-        let main = self.content.unwrap_or_default();
-        let oob: String = self
-            .oob_updates
-            .iter()
-            .map(|(target, html)| {
-                format!(r#"<div id="{}" hx-swap-oob="true">{}</div>"#, target, html)
-            })
-            .collect();
-        (self.status, headers, Html(format!("{}{}", main, oob))).into_response()
+        let content = self.content.unwrap_or_default();
+        (self.status, self.headers, Html(content)).into_response()
     }
 }
+
+// ============================================================================
+// JsonOkResponse — JSON patch data for Silcrow.patch()
+// ============================================================================
+
+#[derive(Debug)]
+pub struct JsonOkResponse {
+    data: serde_json::Map<String, serde_json::Value>,
+    headers: HeaderMap,
+    status: StatusCode,
+}
+
+impl JsonOkResponse {
+    pub fn new() -> Self {
+        Self {
+            data: serde_json::Map::new(),
+            headers: HeaderMap::new(),
+            status: StatusCode::OK,
+        }
+    }
+
+    /// Insert a key-value pair into the JSON response.
+    /// The value must implement `serde::Serialize`.
+    pub fn set(mut self, key: impl Into<String>, value: impl serde::Serialize) -> Self {
+        if let Result::Ok(v) = serde_json::to_value(value) {
+            self.data.insert(key.into(), v);
+        }
+        self
+    }
+
+    /// Insert a pre-built `serde_json::Value`.
+    pub fn set_value(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
+        self.data.insert(key.into(), value);
+        self
+    }
+
+    /// Add a toast notification under the `_toast` key.
+    pub fn toast(mut self, message: impl Into<String>) -> Self {
+        self.data.insert(
+            "_toast".into(),
+            serde_json::json!({ "message": message.into() }),
+        );
+        self
+    }
+
+    /// Add a custom response header.
+    pub fn header(mut self, key: impl AsRef<str>, value: impl AsRef<str>) -> Self {
+        insert_header(&mut self.headers, key.as_ref(), value.as_ref());
+        self
+    }
+
+    /// Set `silcrow-cache: no-cache` to prevent client-side caching.
+    pub fn no_cache(mut self) -> Self {
+        insert_header(&mut self.headers, "silcrow-cache", "no-cache");
+        self
+    }
+
+    /// Set the HTTP status code.
+    pub fn status(mut self, status: StatusCode) -> Self {
+        self.status = status;
+        self
+    }
+}
+
+impl Default for JsonOkResponse {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl IntoResponse for JsonOkResponse {
+    fn into_response(self) -> Response {
+        let body = serde_json::Value::Object(self.data);
+        (self.status, self.headers, axum::Json(body)).into_response()
+    }
+}
+
+// ============================================================================
+// ErrorResponse
+// ============================================================================
 
 #[derive(Debug)]
 pub struct ErrorResponse {
@@ -141,7 +214,7 @@ impl ErrorResponse {
         self
     }
 
-    /// Set error message (rendered as `<div class="error">…</div>`).
+    /// Set error message (rendered as `<div class="error">…</div>` for HTML responses).
     pub fn message(mut self, message: impl Into<String>) -> Self {
         self.message = Some(message.into());
         self
@@ -157,6 +230,13 @@ impl ErrorResponse {
     pub fn header(mut self, key: impl AsRef<str>, value: impl AsRef<str>) -> Self {
         insert_header(&mut self.headers, key.as_ref(), value.as_ref());
         self
+    }
+
+    /// Return the error as a JSON response instead of HTML.
+    pub fn json(self) -> Response {
+        let message = self.message.unwrap_or_else(|| "An error occurred".into());
+        let body = serde_json::json!({ "error": message });
+        (self.status, self.headers, axum::Json(body)).into_response()
     }
 }
 
@@ -179,10 +259,13 @@ impl IntoResponse for ErrorResponse {
     }
 }
 
+// ============================================================================
+// RedirectResponse
+// ============================================================================
+
 #[derive(Debug)]
 pub struct RedirectResponse {
     location: Option<String>,
-    toast_message: Option<String>,
     status: StatusCode,
 }
 
@@ -190,7 +273,6 @@ impl RedirectResponse {
     pub fn new() -> Self {
         Self {
             location: None,
-            toast_message: None,
             status: StatusCode::SEE_OTHER,
         }
     }
@@ -198,12 +280,6 @@ impl RedirectResponse {
     /// Set the redirect location.
     pub fn to(mut self, location: impl Into<String>) -> Self {
         self.location = Some(location.into());
-        self
-    }
-
-    /// Add a toast notification via HX-Trigger header.
-    pub fn toast(mut self, message: impl Into<String>) -> Self {
-        self.toast_message = Some(message.into());
         self
     }
 
@@ -225,12 +301,8 @@ impl IntoResponse for RedirectResponse {
         let mut headers = HeaderMap::new();
         if let Some(ref location) = self.location {
             if let Result::Ok(value) = HeaderValue::from_str(location) {
-                headers.insert(axum::http::header::LOCATION, value.clone());
-                headers.insert("HX-Redirect", value);
+                headers.insert(axum::http::header::LOCATION, value);
             }
-        }
-        if let Some(msg) = self.toast_message {
-            insert_toast(&mut headers, &msg);
         }
         (self.status, headers).into_response()
     }
@@ -242,7 +314,17 @@ impl IntoResponse for RedirectResponse {
 
 #[allow(non_snake_case)]
 pub fn Ok() -> OkResponse {
-    OkResponse::new()
+    OkResponse
+}
+
+#[allow(non_snake_case)]
+pub fn HtmlOk(content: impl IntoHtml) -> HtmlOkResponse {
+    HtmlOkResponse::new().html(content)
+}
+
+#[allow(non_snake_case)]
+pub fn JsonOk() -> JsonOkResponse {
+    JsonOkResponse::new()
 }
 
 #[allow(non_snake_case)]
