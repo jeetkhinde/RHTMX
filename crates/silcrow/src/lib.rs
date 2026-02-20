@@ -47,7 +47,7 @@ where
     async fn from_request_parts(
         parts: &mut axum::http::request::Parts,
         _state: &S,
-    ) -> Result<Self, Self::Rejection> {
-        Result::Ok(Self::from_headers(&parts.headers))
+    ) -> std::result::Result<Self, Self::Rejection> {
+        std::result::Result::Ok(Self::from_headers(&parts.headers))
     }
 }
