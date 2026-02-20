@@ -11,5 +11,11 @@ pub use html::HtmlOkResponse;
 pub use json::JsonOkResponse;
 pub use redirect::RedirectResponse;
 
-/// Framework result type.
-pub type SilcrowResult<T> = std::result::Result<T, ErrorResponse>;
+// Clean public type aliases (convenience usage for Silcrow-oriented responses)
+pub type Json = JsonOkResponse;
+pub type Html = HtmlOkResponse;
+pub type Redirect = RedirectResponse;
+pub type Error = ErrorResponse;
+
+/// Framework result type
+pub type Result<T> = std::result::Result<T, ErrorResponse>;
